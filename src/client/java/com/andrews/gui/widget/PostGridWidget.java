@@ -83,9 +83,21 @@ public class PostGridWidget implements Drawable, Element {
     public void resetPosts(List<ArchivePostSummary> posts) {
         this.posts = posts != null ? new ArrayList<>(posts) : new ArrayList<>();
         this.scrollOffset = 0;
-        this.imageTextures.clear();
-        this.imageLoading.clear();
-        this.imageSizes.clear();
+
+        if (this.posts.isEmpty()) {
+            return;
+        }
+
+        Set<String> idsToKeep = new HashSet<>();
+        for (ArchivePostSummary post : this.posts) {
+            if (post != null && post.id() != null) {
+                idsToKeep.add(post.id());
+            }
+        }
+
+        imageTextures.keySet().retainAll(idsToKeep);
+        imageSizes.keySet().retainAll(idsToKeep);
+        imageLoading.keySet().removeIf(id -> !idsToKeep.contains(id));
     }
 
     public void appendPosts(List<ArchivePostSummary> posts) {
