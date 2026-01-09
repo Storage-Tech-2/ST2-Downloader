@@ -24,12 +24,12 @@ public abstract class LitematicaGuiMainMenuMixin extends GuiBase {
         if (syncmaticaPresent) {
             // Syncmatica adds two buttons in the third column; stack ours beneath them
             final int x = 52 + 2 * width;
-            final int y = 30 + 22 * 2;
+            final int y = 30 + 88;
             st2$createArchiveButton(x, y, width);
         } else {
             // Otherwise place in an extra column to the right
             final int x = 52 + 2 * width;
-            final int y = 30 + 88;
+            final int y = 30;
             st2$createArchiveButton(x, y, width);
         }
     }
