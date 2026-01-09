@@ -38,15 +38,22 @@ public class ChannelFilterPanel implements Drawable, Element {
         this.y = y;
         this.width = width;
         this.height = height;
-        this.scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH, y + HEADER_HEIGHT, height - HEADER_HEIGHT - 10);
+        this.scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH,
+                y + HEADER_HEIGHT, height - HEADER_HEIGHT - 10);
     }
 
     public void setDimensions(int x, int y, int width, int height) {
+        boolean needsNewScrollBar = this.scrollBar == null || this.width != width || this.height != height
+                || this.x != x || this.y != y;
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
-        this.scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH, y + HEADER_HEIGHT, height - HEADER_HEIGHT - 10);
+        if (needsNewScrollBar) {
+            this.scrollBar = new ScrollBar(
+                    x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH, y + HEADER_HEIGHT,
+                    height - HEADER_HEIGHT - 10);
+        }
     }
 
     public void setOnSelectionChanged(Consumer<String> callback) {
@@ -74,7 +81,8 @@ public class ChannelFilterPanel implements Drawable, Element {
 
     private void ensureCountsForChannels() {
         for (ArchiveChannel channel : channels) {
-            if (channel == null || channel.path() == null) continue;
+            if (channel == null || channel.path() == null)
+                continue;
             channelCounts.putIfAbsent(channel.path(), channel.entryCount());
         }
     }
@@ -104,12 +112,14 @@ public class ChannelFilterPanel implements Drawable, Element {
 
         context.fill(x, y, x + width, y + UITheme.Dimensions.BORDER_WIDTH, UITheme.Colors.BUTTON_BORDER);
         context.fill(x, y, x + UITheme.Dimensions.BORDER_WIDTH, y + height, UITheme.Colors.BUTTON_BORDER);
-        context.fill(x + width - UITheme.Dimensions.BORDER_WIDTH, y, x + width, y + height, UITheme.Colors.BUTTON_BORDER);
-        context.fill(x, y + height - UITheme.Dimensions.BORDER_WIDTH, x + width, y + height, UITheme.Colors.BUTTON_BORDER);
-        
+        context.fill(x + width - UITheme.Dimensions.BORDER_WIDTH, y, x + width, y + height,
+                UITheme.Colors.BUTTON_BORDER);
+        context.fill(x, y + height - UITheme.Dimensions.BORDER_WIDTH, x + width, y + height,
+                UITheme.Colors.BUTTON_BORDER);
 
         float scale = 0.9f;
-        RenderUtil.drawScaledString(context, "Channels", x + UITheme.Dimensions.PADDING, y + UITheme.Dimensions.PADDING + 2, UITheme.Colors.TEXT_PRIMARY, scale);
+        RenderUtil.drawScaledString(context, "Channels", x + UITheme.Dimensions.PADDING,
+                y + UITheme.Dimensions.PADDING + 2, UITheme.Colors.TEXT_PRIMARY, scale);
 
         String reset = "Reset";
         int resetWidth = (int) (client.textRenderer.getWidth(reset) * scale);
@@ -120,7 +130,9 @@ public class ChannelFilterPanel implements Drawable, Element {
         int listStartY = y + HEADER_HEIGHT - (int) scrollOffset;
         contentHeight = HEADER_HEIGHT;
 
-        int scrollbarWidth = this.scrollBar.isVisible() ? (UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.PADDING / 2) : 0;
+        int scrollbarWidth = this.scrollBar.isVisible()
+                ? (UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.PADDING / 2)
+                : 0;
 
         context.enableScissor(x, y + HEADER_HEIGHT, x + width - scrollbarWidth, y + height - 10);
 
@@ -129,14 +141,17 @@ public class ChannelFilterPanel implements Drawable, Element {
             String category = entry.getKey();
             List<ArchiveChannel> categoryChannels = entry.getValue();
 
-            RenderUtil.drawScaledString(context, category, x + UITheme.Dimensions.PADDING, currentY + 4, UITheme.Colors.TEXT_SUBTITLE, scale);
+            RenderUtil.drawScaledString(context, category, x + UITheme.Dimensions.PADDING, currentY + 4,
+                    UITheme.Colors.TEXT_SUBTITLE, scale);
             currentY += (int) (ITEM_HEIGHT * scale) + 2;
             contentHeight += ITEM_HEIGHT;
 
             for (ArchiveChannel channel : categoryChannels) {
                 boolean selected = channel.path().equals(selectedPath);
                 int bgColor = selected ? UITheme.Colors.BUTTON_BG_HOVER : UITheme.Colors.PANEL_BG;
-                context.fill(x + UITheme.Dimensions.PADDING / 2, currentY, x + width - scrollbarWidth - UITheme.Dimensions.PADDING / 2, currentY + ITEM_HEIGHT - 2, bgColor);
+                context.fill(x + UITheme.Dimensions.PADDING / 2, currentY,
+                        x + width - scrollbarWidth - UITheme.Dimensions.PADDING / 2, currentY + ITEM_HEIGHT - 2,
+                        bgColor);
                 String path = channel.path();
                 int count = channelCounts.getOrDefault(path, channel.entryCount());
                 String countText = String.valueOf(count);
@@ -144,9 +159,13 @@ public class ChannelFilterPanel implements Drawable, Element {
                 float textScale = 0.9f;
                 int codeWidth = client.textRenderer.getWidth(channel.code()) + 4;
 
-                RenderUtil.drawScaledString(context, channel.code(), x + UITheme.Dimensions.PADDING, currentY + 6, UITheme.Colors.TEXT_MUTED, textScale);
-                RenderUtil.drawScaledString(context, channel.name(), x + UITheme.Dimensions.PADDING + codeWidth, currentY + 6, UITheme.Colors.TEXT_PRIMARY, textScale);
-                RenderUtil.drawScaledString(context, countText, x + width - scrollbarWidth - UITheme.Dimensions.PADDING - countWidth - 6, currentY + 6, UITheme.Colors.TEXT_SUBTITLE, textScale);
+                RenderUtil.drawScaledString(context, channel.code(), x + UITheme.Dimensions.PADDING, currentY + 6,
+                        UITheme.Colors.TEXT_MUTED, textScale);
+                RenderUtil.drawScaledString(context, channel.name(), x + UITheme.Dimensions.PADDING + codeWidth,
+                        currentY + 6, UITheme.Colors.TEXT_PRIMARY, textScale);
+                RenderUtil.drawScaledString(context, countText,
+                        x + width - scrollbarWidth - UITheme.Dimensions.PADDING - countWidth - 6, currentY + 6,
+                        UITheme.Colors.TEXT_SUBTITLE, textScale);
 
                 currentY += ITEM_HEIGHT;
                 contentHeight += ITEM_HEIGHT;
@@ -177,7 +196,8 @@ public class ChannelFilterPanel implements Drawable, Element {
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button != 0) return false;
+        if (button != 0)
+            return false;
         if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
             return false;
         }
@@ -190,7 +210,8 @@ public class ChannelFilterPanel implements Drawable, Element {
         int resetWidth = client.textRenderer.getWidth(reset);
         int resetX = x + width - resetWidth - UITheme.Dimensions.PADDING;
         int resetY = y + UITheme.Dimensions.PADDING + 2;
-        if (mouseX >= resetX && mouseX <= resetX + resetWidth && mouseY >= resetY && mouseY <= resetY + UITheme.Typography.TEXT_HEIGHT) {
+        if (mouseX >= resetX && mouseX <= resetX + resetWidth && mouseY >= resetY
+                && mouseY <= resetY + UITheme.Typography.TEXT_HEIGHT) {
             clearSelection();
             return true;
         }
@@ -229,7 +250,8 @@ public class ChannelFilterPanel implements Drawable, Element {
 
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height) {
-            scrollOffset = Math.max(0, Math.min(scrollOffset - verticalAmount * 12, Math.max(0, contentHeight - height)));
+            scrollOffset = Math.max(0,
+                    Math.min(scrollOffset - verticalAmount * 12, Math.max(0, contentHeight - height)));
             scrollBar.setScrollPercentage((float) (scrollOffset / Math.max(1, contentHeight - height)));
             updateHover(mouseX, mouseY);
             return true;
@@ -253,17 +275,29 @@ public class ChannelFilterPanel implements Drawable, Element {
     }
 
     @Override
-    public void setFocused(boolean focused) {}
+    public void setFocused(boolean focused) {
+    }
 
     @Override
     public boolean isFocused() {
         return false;
     }
 
-    public int getX() { return x; }
-    public int getY() { return y; }
-    public int getWidth() { return width; }
-    public int getHeight() { return height; }
+    public int getX() {
+        return x;
+    }
+
+    public int getY() {
+        return y;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
+    }
 
     private void updateHover(double mouseX, double mouseY) {
         if (onHoverChanged == null) {
@@ -272,7 +306,9 @@ public class ChannelFilterPanel implements Drawable, Element {
         ArchiveChannel hovered = null;
         int listStartY = y + HEADER_HEIGHT - (int) scrollOffset;
         int currentY = listStartY;
-        int scrollbarWidth = this.scrollBar.isVisible() ? (UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.PADDING / 2) : 0;
+        int scrollbarWidth = this.scrollBar.isVisible()
+                ? (UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.PADDING / 2)
+                : 0;
 
         float scale = 0.9f;
         for (Map.Entry<String, List<ArchiveChannel>> entry : channelsByCategory.entrySet()) {
@@ -281,19 +317,20 @@ public class ChannelFilterPanel implements Drawable, Element {
             List<ArchiveChannel> categoryChannels = entry.getValue();
             for (ArchiveChannel channel : categoryChannels) {
                 if (mouseY >= currentY && mouseY < currentY + ITEM_HEIGHT &&
-                    mouseX >= x && mouseX < x + width - scrollbarWidth) {
+                        mouseX >= x && mouseX < x + width - scrollbarWidth) {
                     hovered = channel;
                     break;
                 }
                 currentY += ITEM_HEIGHT;
             }
-            if (hovered != null) break;
+            if (hovered != null)
+                break;
             currentY += 4;
         }
         onHoverChanged.accept(hovered);
     }
 
     private void handleCursor(DrawContext guiGraphics) {
-	
-	}
+
+    }
 }
