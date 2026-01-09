@@ -620,6 +620,10 @@ public class LitematicDownloaderScreen extends Screen {
             detailPanel.keyPressed(256, 0, 0); // 256 = GLFW_KEY_ESCAPE
             return false;
         }
+        if (showChannelPanel) {
+            showChannelPanel = false;
+            return false;
+        }
         if (showDetailOverlay) {
             showDetailOverlay = false;
             return false;
