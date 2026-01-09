@@ -132,7 +132,7 @@ public class LitematicDownloaderScreen extends Screen {
             Text.of(showChannelPanel ? "Hide Channels" : "Show Channels"),
             button -> {
                 showChannelPanel = !showChannelPanel;
-                this.init(client, this.width, this.height);
+                this.init();
             }
         );
         int gridY = PADDING + PADDING/2 + SEARCH_BAR_HEIGHT;
@@ -622,6 +622,7 @@ public class LitematicDownloaderScreen extends Screen {
         }
         if (showChannelPanel) {
             showChannelPanel = false;
+            this.init();
             return false;
         }
         if (showDetailOverlay) {
