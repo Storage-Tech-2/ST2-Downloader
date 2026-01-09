@@ -12,7 +12,9 @@ import java.util.function.BiConsumer;
 import com.andrews.gui.theme.UITheme;
 
 public class TagFilterWidget {
-    public enum TagState { INCLUDE, EXCLUDE }
+    public enum TagState {
+        INCLUDE, EXCLUDE
+    }
 
     private int x;
     private int y;
@@ -30,11 +32,17 @@ public class TagFilterWidget {
     private BiConsumer<String, TagState> onToggle;
 
     public void setBounds(int x, int y, int width, int height) {
+        boolean needsNewScrollBar = this.scrollBar == null || this.width != width || this.height != height
+                || this.x != x || this.y != y;
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
-        this.scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH, y + this.rowHeight, height - this.rowHeight - UITheme.Dimensions.PADDING);
+        if (needsNewScrollBar) {
+            this.scrollBar = new ScrollBar(
+                    x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH,
+                    y + this.rowHeight, height - this.rowHeight - UITheme.Dimensions.PADDING);
+        }
     }
 
     public void setData(List<String> tags, Map<String, Integer> counts, Map<String, TagState> tagStates) {
@@ -49,7 +57,8 @@ public class TagFilterWidget {
 
     public void render(GuiGraphics context, Font font, int mouseX, int mouseY, float delta, long windowHandle) {
         if (scrollBar == null) {
-            scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH, y + rowHeight, height - rowHeight - UITheme.Dimensions.PADDING);
+            scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH,
+                    y + rowHeight, height - rowHeight - UITheme.Dimensions.PADDING);
         }
         hitboxes.clear();
         int content = rowHeight + tags.size() * rowHeight + UITheme.Dimensions.PADDING;
@@ -64,10 +73,13 @@ public class TagFilterWidget {
         context.fill(x, y, x + innerWidth, y + boxHeight, UITheme.Colors.PANEL_BG_SECONDARY);
         context.fill(x, y, x + innerWidth, y + UITheme.Dimensions.BORDER_WIDTH, UITheme.Colors.BUTTON_BORDER);
         context.fill(x, y, x + UITheme.Dimensions.BORDER_WIDTH, y + boxHeight, UITheme.Colors.BUTTON_BORDER);
-        context.fill(x + innerWidth - UITheme.Dimensions.BORDER_WIDTH, y, x + innerWidth, y + boxHeight, UITheme.Colors.BUTTON_BORDER);
-        context.fill(x, y + boxHeight - UITheme.Dimensions.BORDER_WIDTH, x + innerWidth, y + boxHeight, UITheme.Colors.BUTTON_BORDER);
+        context.fill(x + innerWidth - UITheme.Dimensions.BORDER_WIDTH, y, x + innerWidth, y + boxHeight,
+                UITheme.Colors.BUTTON_BORDER);
+        context.fill(x, y + boxHeight - UITheme.Dimensions.BORDER_WIDTH, x + innerWidth, y + boxHeight,
+                UITheme.Colors.BUTTON_BORDER);
 
-        RenderUtil.drawScaledString(context, "Tags", x + UITheme.Dimensions.PADDING, y + 4, UITheme.Colors.TEXT_PRIMARY, 0.9f);
+        RenderUtil.drawScaledString(context, "Tags", x + UITheme.Dimensions.PADDING, y + 4, UITheme.Colors.TEXT_PRIMARY,
+                0.9f);
 
         int clipTop = y + rowHeight;
         int clipBottom = y + boxHeight - UITheme.Dimensions.PADDING;
@@ -91,12 +103,16 @@ public class TagFilterWidget {
                 int textColor = UITheme.Colors.TEXT_PRIMARY;
                 int textHeight = (int) (font.lineHeight * 0.85f);
                 int centerOffset = (rowHeight - textHeight) / 2;
-                context.fill(x + UITheme.Dimensions.PADDING, currentY + 4, x + UITheme.Dimensions.PADDING + 6, currentY + rowHeight - 4, swatchColor);
-                RenderUtil.drawScaledString(context, tag, x + UITheme.Dimensions.PADDING + 10, currentY + centerOffset, textColor, 0.85f, innerWidth - 50);
+                context.fill(x + UITheme.Dimensions.PADDING, currentY + 4, x + UITheme.Dimensions.PADDING + 6,
+                        currentY + rowHeight - 4, swatchColor);
+                RenderUtil.drawScaledString(context, tag, x + UITheme.Dimensions.PADDING + 10, currentY + centerOffset,
+                        textColor, 0.85f, innerWidth - 50);
 
                 int count = counts.getOrDefault(tag.toLowerCase(), 0);
                 String countText = String.valueOf(count);
-                context.drawString(font, countText, x + innerWidth - UITheme.Dimensions.PADDING - font.width(countText) - scrollbarWidth, currentY + 4, UITheme.Colors.TEXT_SUBTITLE);
+                context.drawString(font, countText,
+                        x + innerWidth - UITheme.Dimensions.PADDING - font.width(countText) - scrollbarWidth,
+                        currentY + 4, UITheme.Colors.TEXT_SUBTITLE);
             }
 
             hitboxes.add(new TagHitbox(tag, x + 1, currentY, x + innerWidth - 1, currentY + rowHeight));
@@ -170,12 +186,17 @@ public class TagFilterWidget {
     }
 
     private int getTagSwatchColor(String tag) {
-        if (tag == null) return UITheme.Colors.BUTTON_BG;
+        if (tag == null)
+            return UITheme.Colors.BUTTON_BG;
         String lower = tag.toLowerCase();
-        if (lower.contains("untested")) return 0xFF8C6E00;
-        if (lower.contains("broken")) return 0xFF8B1A1A;
-        if (lower.contains("tested") || lower.contains("functional")) return 0xFF1E7F1E;
-        if (lower.contains("recommend")) return 0xFFB8860B;
+        if (lower.contains("untested"))
+            return 0xFF8C6E00;
+        if (lower.contains("broken"))
+            return 0xFF8B1A1A;
+        if (lower.contains("tested") || lower.contains("functional"))
+            return 0xFF1E7F1E;
+        if (lower.contains("recommend"))
+            return 0xFFB8860B;
         return UITheme.Colors.BUTTON_BG;
     }
 

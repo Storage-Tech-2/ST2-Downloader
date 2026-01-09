@@ -47,11 +47,15 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
     }
 
     public void setDimensions(int x, int y, int width, int height) {
+        boolean needsNewScrollBar = this.scrollBar == null || this.width != width || this.height != height
+                || this.x != x || this.y != y;
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
-        this.scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH, y + HEADER_HEIGHT, height - HEADER_HEIGHT - 10);
+        if (needsNewScrollBar) {
+            this.scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH, y + HEADER_HEIGHT, height - HEADER_HEIGHT - 10);
+        }
     }
 
     public void setOnSelectionChanged(Consumer<String> callback) {
