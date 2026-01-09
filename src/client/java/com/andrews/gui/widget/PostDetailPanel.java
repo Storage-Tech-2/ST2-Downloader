@@ -39,7 +39,6 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 
-import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
@@ -50,15 +49,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
 
-
 public class PostDetailPanel implements Renderable, GuiEventListener {
-    
-    
-    
+
     private static final int TAG_BG_COLOR = UITheme.Colors.BUTTON_BG;
-    
+
     private static final int MAX_IMAGE_SIZE = 120;
-    
 
     private int x;
     private int y;
@@ -112,7 +107,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         this.imageLoadingSpinner = new LoadingSpinner(0, 0);
         int scrollBarYOffset = 30;
         this.scrollBar = new ScrollBar(x + width - 8, y + scrollBarYOffset, height - scrollBarYOffset);
-        this.schematicDropdown = new DropdownWidget(x, y, width - UITheme.Dimensions.PADDING * 2, this::onSchematicSelected);
+        this.schematicDropdown = new DropdownWidget(x, y, width - UITheme.Dimensions.PADDING * 2,
+                this::onSchematicSelected);
     }
 
     public void setDimensions(int x, int y, int width, int height) {
@@ -246,16 +242,17 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         this.downloadStatus = "";
 
         ArchiveNetworkManager.getPostDetails(post)
-            .thenAccept(this::handlePostDetailLoaded)
-            .exceptionally(throwable -> {
-                if (client != null) {
-                    client.execute(() -> {
-                        isLoadingDetails = false;
-                        System.err.println("[PostDetailPanel] Failed to load post details: " + throwable.getMessage());
-                    });
-                }
-                return null;
-            });
+                .thenAccept(this::handlePostDetailLoaded)
+                .exceptionally(throwable -> {
+                    if (client != null) {
+                        client.execute(() -> {
+                            isLoadingDetails = false;
+                            System.err.println(
+                                    "[PostDetailPanel] Failed to load post details: " + throwable.getMessage());
+                        });
+                    }
+                    return null;
+                });
 
         this.imageUrls = new String[0];
     }
@@ -265,8 +262,10 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             client.execute(() -> {
                 this.postDetail = detail;
                 this.isLoadingDetails = false;
-                this.availableFiles = detail.attachments() != null ? new ArrayList<>(detail.attachments()) : new ArrayList<>();
-                this.imageInfos = detail.imageInfos() != null ? new ArrayList<>(detail.imageInfos()) : new ArrayList<>();
+                this.availableFiles = detail.attachments() != null ? new ArrayList<>(detail.attachments())
+                        : new ArrayList<>();
+                this.imageInfos = detail.imageInfos() != null ? new ArrayList<>(detail.imageInfos())
+                        : new ArrayList<>();
 
                 List<String> detailImages = detail.images();
                 if (detailImages != null && !detailImages.isEmpty()) {
@@ -285,7 +284,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     private void loadImage(String imageUrl) {
-        if (imageUrl == null || imageUrl.isEmpty()) return;
+        if (imageUrl == null || imageUrl.isEmpty())
+            return;
 
         if (imageCache.containsKey(imageUrl)) {
             currentImageTexture = imageCache.get(imageUrl);
@@ -360,65 +360,66 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         String encodedUrl = encodeImageUrl(imageUrl);
 
         HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
 
         HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create(encodedUrl))
-            .GET()
-            .header("User-Agent", ArchiveNetworkManager.USER_AGENT)
-            .build();
+                .uri(URI.create(encodedUrl))
+                .GET()
+                .header("User-Agent", ArchiveNetworkManager.USER_AGENT)
+                .build();
 
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
-            .thenApply(response -> {
-                if (response.statusCode() != 200) {
-                    throw new CompletionException(new RuntimeException("HTTP error: " + response.statusCode()));
-                }
+                .thenApply(response -> {
+                    if (response.statusCode() != 200) {
+                        throw new CompletionException(new RuntimeException("HTTP error: " + response.statusCode()));
+                    }
 
-                byte[] imageData = response.body();
-                byte[] pngBytes;
-                try {
-                    pngBytes = convertImageToPng(imageData);
-                } catch (Exception e) {
-                    throw new CompletionException(e);
-                }
+                    byte[] imageData = response.body();
+                    byte[] pngBytes;
+                    try {
+                        pngBytes = convertImageToPng(imageData);
+                    } catch (Exception e) {
+                        throw new CompletionException(e);
+                    }
 
-                NativeImage nativeImage;
-                try {
-                    nativeImage = NativeImage.read(new ByteArrayInputStream(pngBytes));
-                } catch (Exception e) {
-                    throw new CompletionException(e);
-                }
+                    NativeImage nativeImage;
+                    try {
+                        nativeImage = NativeImage.read(new ByteArrayInputStream(pngBytes));
+                    } catch (Exception e) {
+                        throw new CompletionException(e);
+                    }
 
-                int imgWidth = nativeImage.getWidth();
-                int imgHeight = nativeImage.getHeight();
+                    int imgWidth = nativeImage.getWidth();
+                    int imgHeight = nativeImage.getHeight();
 
-                if (imgWidth <= 0 || imgHeight <= 0 || imgWidth > 4096 || imgHeight > 4096) {
-                    nativeImage.close();
-                    throw new CompletionException(new RuntimeException("Invalid image dimensions"));
-                }
+                    if (imgWidth <= 0 || imgHeight <= 0 || imgWidth > 4096 || imgHeight > 4096) {
+                        nativeImage.close();
+                        throw new CompletionException(new RuntimeException("Invalid image dimensions"));
+                    }
 
-                imageDimensionsCache.put(imageUrl, new int[]{imgWidth, imgHeight});
+                    imageDimensionsCache.put(imageUrl, new int[] { imgWidth, imgHeight });
 
-                final String uniqueId = UUID.randomUUID().toString().replace("-", "");
-                final Identifier texId = Identifier.fromNamespaceAndPath("litematicdownloader", "textures/dynamic/" + uniqueId);
+                    final String uniqueId = UUID.randomUUID().toString().replace("-", "");
+                    final Identifier texId = Identifier.fromNamespaceAndPath("litematicdownloader",
+                            "textures/dynamic/" + uniqueId);
 
-                if (client != null) {
-                    client.execute(() -> {
-                        client.getTextureManager().register(
-                            texId,
-                            new DynamicTexture(() -> "archive_image", nativeImage)
-                        );
-                        imageCache.put(imageUrl, texId);
-                    });
-                }
-                return texId;
-            });
+                    if (client != null) {
+                        client.execute(() -> {
+                            client.getTextureManager().register(
+                                    texId,
+                                    new DynamicTexture(() -> "archive_image", nativeImage));
+                            imageCache.put(imageUrl, texId);
+                        });
+                    }
+                    return texId;
+                });
     }
 
     private void updateCurrentImageDescription(String imageUrl) {
         currentImageDescription = "";
-        if (imageUrl == null) return;
+        if (imageUrl == null)
+            return;
         for (ArchiveImageInfo info : imageInfos) {
             if (info != null && imageUrl.equals(info.url())) {
                 currentImageDescription = info.description() != null ? info.description() : "";
@@ -437,9 +438,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             String path = uri.getPath();
             String encodedPath = path.replace(" ", "%20");
             return uri.getScheme() + "://" + uri.getHost() +
-                   (uri.getPort() != -1 ? ":" + uri.getPort() : "") +
-                   encodedPath +
-                   (uri.getQuery() != null ? "?" + uri.getQuery() : "");
+                    (uri.getPort() != -1 ? ":" + uri.getPort() : "") +
+                    encodedPath +
+                    (uri.getQuery() != null ? "?" + uri.getQuery() : "");
         } catch (Exception e) {
             return url.replace(" ", "%20");
         }
@@ -471,12 +472,11 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         }
 
         if (bufferedImage.getType() != BufferedImage.TYPE_INT_RGB &&
-            bufferedImage.getType() != BufferedImage.TYPE_INT_ARGB) {
+                bufferedImage.getType() != BufferedImage.TYPE_INT_ARGB) {
             BufferedImage converted = new BufferedImage(
-                bufferedImage.getWidth(),
-                bufferedImage.getHeight(),
-                BufferedImage.TYPE_INT_ARGB
-            );
+                    bufferedImage.getWidth(),
+                    bufferedImage.getHeight(),
+                    BufferedImage.TYPE_INT_ARGB);
             Graphics2D g2d = converted.createGraphics();
             g2d.drawImage(bufferedImage, 0, 0, null);
             g2d.dispose();
@@ -516,7 +516,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     private void onSchematicSelected(DropdownWidget.DropdownItem item) {
-        if (item == null || !(item.getData() instanceof ArchiveAttachment)) return;
+        if (item == null || !(item.getData() instanceof ArchiveAttachment))
+            return;
 
         ArchiveAttachment file = (ArchiveAttachment) item.getData();
         downloadSchematic(file);
@@ -547,23 +548,23 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             String encodedUrl = downloadUrl.replace(" ", "%20");
 
             HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .followRedirects(HttpClient.Redirect.ALWAYS)
-                .build();
+                    .connectTimeout(Duration.ofSeconds(30))
+                    .followRedirects(HttpClient.Redirect.ALWAYS)
+                    .build();
 
             HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(encodedUrl))
-                .GET()
-                .header("User-Agent", ArchiveNetworkManager.USER_AGENT)
-                .build();
+                    .uri(URI.create(encodedUrl))
+                    .GET()
+                    .header("User-Agent", ArchiveNetworkManager.USER_AGENT)
+                    .build();
 
             System.out.println("[Download] Sending request...");
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
-                .thenAccept(response -> handleDownloadResponse(file, response))
-                .exceptionally(e -> {
-                    handleDownloadError(e);
-                    return null;
-                });
+                    .thenAccept(response -> handleDownloadResponse(file, response))
+                    .exceptionally(e -> {
+                        handleDownloadError(e);
+                        return null;
+                    });
         });
     }
 
@@ -602,27 +603,28 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         }
 
         AttachmentSaver.saveAsync(file, response.body())
-            .thenAccept(result -> {
-                final String finalFileName = result.fileName();
-                final Path finalPath = result.path();
-                client.execute(() -> {
-                    boolean attemptedAutoLoad = shouldAutoLoadSchematic(file, finalPath);
-                    boolean autoLoaded = attemptedAutoLoad && LitematicaAutoLoader.loadIntoWorld(finalPath);
-                    downloadStatus = buildDownloadStatus(result, finalFileName, attemptedAutoLoad, autoLoaded);
-                    if (schematicDropdown != null) {
-                        schematicDropdown.setStatusMessage(downloadStatus);
-                    }
-                    System.out.println("Downloaded to: " + finalPath.toAbsolutePath());
+                .thenAccept(result -> {
+                    final String finalFileName = result.fileName();
+                    final Path finalPath = result.path();
+                    client.execute(() -> {
+                        boolean attemptedAutoLoad = shouldAutoLoadSchematic(file, finalPath);
+                        boolean autoLoaded = attemptedAutoLoad && LitematicaAutoLoader.loadIntoWorld(finalPath);
+                        downloadStatus = buildDownloadStatus(result, finalFileName, attemptedAutoLoad, autoLoaded);
+                        if (schematicDropdown != null) {
+                            schematicDropdown.setStatusMessage(downloadStatus);
+                        }
+                        System.out.println("Downloaded to: " + finalPath.toAbsolutePath());
+                    });
+                })
+                .exceptionally(ex -> {
+                    handleDownloadError(ex);
+                    return null;
                 });
-            })
-            .exceptionally(ex -> {
-                handleDownloadError(ex);
-                return null;
-            });
     }
 
     private void handleDownloadError(Throwable throwable) {
-        Throwable e = throwable instanceof CompletionException && throwable.getCause() != null ? throwable.getCause() : throwable;
+        Throwable e = throwable instanceof CompletionException && throwable.getCause() != null ? throwable.getCause()
+                : throwable;
         client.execute(() -> {
             String errorMsg;
             if (e instanceof java.net.UnknownHostException) {
@@ -663,10 +665,11 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         return LitematicaAutoLoader.isAvailable() && fileName.endsWith(".litematic");
     }
 
-    private String buildDownloadStatus(AttachmentSaver.SaveResult result, String fileName, boolean attemptedAutoLoad, boolean autoLoaded) {
+    private String buildDownloadStatus(AttachmentSaver.SaveResult result, String fileName, boolean attemptedAutoLoad,
+            boolean autoLoaded) {
         String base = result.isWorldDownload()
-            ? "✓ World saved: saves/" + fileName
-            : "✓ Downloaded: " + fileName;
+                ? "✓ World saved: saves/" + fileName
+                : "✓ Downloaded: " + fileName;
         if (result.isWorldDownload() || !attemptedAutoLoad) {
             return base;
         }
@@ -697,13 +700,12 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     private void ensureDiscordButton(int width, int xPos, int yPos) {
         if (discordThreadButton == null) {
             discordThreadButton = new CustomButton(
-                xPos,
-                yPos,
-                width,
-                UITheme.Dimensions.BUTTON_HEIGHT,
-                Component.nullToEmpty("Open Discord Thread"),
-                button -> openDiscordThread()
-            );
+                    xPos,
+                    yPos,
+                    width,
+                    UITheme.Dimensions.BUTTON_HEIGHT,
+                    Component.nullToEmpty("Open Discord Thread"),
+                    button -> openDiscordThread());
         }
         discordThreadButton.active = hasDiscordThread();
         discordThreadButton.setWidth(width);
@@ -715,13 +717,12 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     private void ensureWebsiteButton(int width, int xPos, int yPos) {
         if (websiteButton == null) {
             websiteButton = new CustomButton(
-                xPos,
-                yPos,
-                width,
-                UITheme.Dimensions.BUTTON_HEIGHT,
-                Component.nullToEmpty("Open On Website"),
-                button -> openWebsiteLink()
-            );
+                    xPos,
+                    yPos,
+                    width,
+                    UITheme.Dimensions.BUTTON_HEIGHT,
+                    Component.nullToEmpty("Open On Website"),
+                    button -> openWebsiteLink());
         }
         websiteButton.active = hasWebsiteLink();
         websiteButton.setWidth(width);
@@ -776,7 +777,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             String text = "Select a schematic to view details";
             int textWidth = client.font.width(text);
             context.drawString(client.font, text,
-                x + (width - textWidth) / 2, y + height / 2 - 4, UITheme.Colors.TEXT_SUBTITLE);
+                    x + (width - textWidth) / 2, y + height / 2 - 4, UITheme.Colors.TEXT_SUBTITLE);
             return;
         }
 
@@ -800,28 +801,30 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         int imageY = containerY + (containerHeight - actualImageHeight) / 2;
 
         if (isLoadingImage) {
-            context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight, UITheme.Colors.CONTAINER_BG);
+            context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight,
+                    UITheme.Colors.CONTAINER_BG);
             imageLoadingSpinner.setPosition(
-                containerX + containerWidth / 2 - imageLoadingSpinner.getWidth() / 2,
-                containerY + containerHeight / 2 - imageLoadingSpinner.getHeight() / 2
-            );
+                    containerX + containerWidth / 2 - imageLoadingSpinner.getWidth() / 2,
+                    containerY + containerHeight / 2 - imageLoadingSpinner.getHeight() / 2);
             imageLoadingSpinner.render(context, mouseX, mouseY, delta);
         } else if (currentImageTexture != null) {
-            context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight, UITheme.Colors.PANEL_BG);
+            context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight,
+                    UITheme.Colors.PANEL_BG);
             context.blit(
-                RenderPipelines.GUI_TEXTURED,
-                currentImageTexture,
-                imageX, imageY,
-                0, 0,
-                actualImageWidth, actualImageHeight,
-                actualImageWidth, actualImageHeight
-            );
+                    RenderPipelines.GUI_TEXTURED,
+                    currentImageTexture,
+                    imageX, imageY,
+                    0, 0,
+                    actualImageWidth, actualImageHeight,
+                    actualImageWidth, actualImageHeight);
         } else {
-            context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight, UITheme.Colors.CONTAINER_BG);
+            context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight,
+                    UITheme.Colors.CONTAINER_BG);
             String noImg = isCompactMode() ? "..." : "No image";
             int tw = client.font.width(noImg);
             context.drawString(client.font, noImg,
-                containerX + (containerWidth - tw) / 2, containerY + containerHeight / 2 - 4, UITheme.Colors.TEXT_SUBTITLE);
+                    containerX + (containerWidth - tw) / 2, containerY + containerHeight / 2 - 4,
+                    UITheme.Colors.TEXT_SUBTITLE);
         }
 
         currentY += containerHeight + UITheme.Dimensions.PADDING;
@@ -830,7 +833,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         String imageDescription = getCurrentImageDescription();
         if (imageDescription != null && !imageDescription.isEmpty()) {
             int descWidth = width - UITheme.Dimensions.PADDING * 2;
-            drawWrappedText(context, imageDescription, x + UITheme.Dimensions.PADDING, currentY, descWidth, UITheme.Colors.TEXT_SUBTITLE);
+            drawWrappedText(context, imageDescription, x + UITheme.Dimensions.PADDING, currentY, descWidth,
+                    UITheme.Colors.TEXT_SUBTITLE);
             int descHeight = getWrappedTextHeight(imageDescription, descWidth);
             currentY += descHeight + 6;
             contentHeight += descHeight + 6;
@@ -859,19 +863,22 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         }
 
         String title = postInfo.title() != null ? postInfo.title() : "Untitled";
-        drawWrappedText(context, title, x + UITheme.Dimensions.PADDING, currentY, width - UITheme.Dimensions.PADDING * 2, UITheme.Colors.TEXT_PRIMARY);
+        drawWrappedText(context, title, x + UITheme.Dimensions.PADDING, currentY,
+                width - UITheme.Dimensions.PADDING * 2, UITheme.Colors.TEXT_PRIMARY);
         int titleHeight = getWrappedTextHeight(title, width - UITheme.Dimensions.PADDING * 2);
         currentY += titleHeight + 8;
         contentHeight += titleHeight + 8;
 
         String metaLine = buildMetaLine();
-        context.drawString(client.font, metaLine, x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+        context.drawString(client.font, metaLine, x + UITheme.Dimensions.PADDING, currentY,
+                UITheme.Colors.TEXT_SUBTITLE);
         currentY += 16;
         contentHeight += 16;
 
         if (postDetail != null && postDetail.authors() != null && !postDetail.authors().isEmpty()) {
             String authorLine = "By: " + String.join(", ", postDetail.authors());
-            drawWrappedText(context, authorLine, x + UITheme.Dimensions.PADDING, currentY, width - UITheme.Dimensions.PADDING * 2, UITheme.Colors.TEXT_SUBTITLE);
+            drawWrappedText(context, authorLine, x + UITheme.Dimensions.PADDING, currentY,
+                    width - UITheme.Dimensions.PADDING * 2, UITheme.Colors.TEXT_SUBTITLE);
             int authorHeight = getWrappedTextHeight(authorLine, width - UITheme.Dimensions.PADDING * 2);
             currentY += authorHeight + 4;
             contentHeight += authorHeight + 4;
@@ -879,7 +886,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         String[] tags = postInfo.tags();
         if (tags != null && tags.length > 0) {
-            context.drawString(client.font, "Tags:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawString(client.font, "Tags:", x + UITheme.Dimensions.PADDING, currentY,
+                    UITheme.Colors.TEXT_SUBTITLE);
             currentY += 12;
             contentHeight += 12;
 
@@ -903,17 +911,21 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             currentY += 8;
             contentHeight += 8;
             for (ArchiveRecordSection section : postDetail.recordSections()) {
-                if (section == null) continue;
+                if (section == null)
+                    continue;
                 String header = section.title() != null ? section.title() : "Details";
-                context.drawString(client.font, header + ":", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+                context.drawString(client.font, header + ":", x + UITheme.Dimensions.PADDING, currentY,
+                        UITheme.Colors.TEXT_SUBTITLE);
                 currentY += 12;
                 contentHeight += 12;
 
                 List<String> lines = section.lines();
                 if (lines != null) {
                     for (String line : lines) {
-                        if (line == null || line.isEmpty()) continue;
-                        drawWrappedText(context, line, x + UITheme.Dimensions.PADDING, currentY, width - UITheme.Dimensions.PADDING * 2, UITheme.Colors.TEXT_TAG);
+                        if (line == null || line.isEmpty())
+                            continue;
+                        drawWrappedText(context, line, x + UITheme.Dimensions.PADDING, currentY,
+                                width - UITheme.Dimensions.PADDING * 2, UITheme.Colors.TEXT_TAG);
                         int lineHeight = getWrappedTextHeight(line, width - UITheme.Dimensions.PADDING * 2);
                         currentY += lineHeight;
                         contentHeight += lineHeight;
@@ -924,19 +936,22 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             }
         } else if (isLoadingDetails) {
             currentY += 8;
-            context.drawString(client.font, "Loading details...", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawString(client.font, "Loading details...", x + UITheme.Dimensions.PADDING, currentY,
+                    UITheme.Colors.TEXT_SUBTITLE);
             contentHeight += 20;
         }
 
         if (availableFiles != null && !availableFiles.isEmpty()) {
-            context.drawString(client.font, "Attachments:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawString(client.font, "Attachments:", x + UITheme.Dimensions.PADDING, currentY,
+                    UITheme.Colors.TEXT_SUBTITLE);
             currentY += 12;
             contentHeight += 12;
 
             int rowWidth = width - UITheme.Dimensions.PADDING * 2;
             int rowX = x + UITheme.Dimensions.PADDING;
             for (ArchiveAttachment attachment : availableFiles) {
-                if (attachment == null) continue;
+                if (attachment == null)
+                    continue;
                 int rowY = currentY;
                 String nameText = attachment.name() != null ? attachment.name() : "Attachment";
                 String meta = buildAttachmentMeta(attachment);
@@ -950,12 +965,13 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 int rowHeight = nameHeight + metaHeight + descHeight + 4;
 
                 boolean isHover = renderMouseX >= rowX && renderMouseX <= rowX + rowWidth &&
-                                  renderMouseY >= rowY && renderMouseY <= rowY + rowHeight;
+                        renderMouseY >= rowY && renderMouseY <= rowY + rowHeight;
                 int bgColor = isHover ? UITheme.Colors.BUTTON_BG_HOVER : UITheme.Colors.BUTTON_BG;
                 context.fill(rowX, rowY, rowX + rowWidth, rowY + rowHeight, bgColor);
 
                 int cursorY = rowY + 3;
-                RenderUtil.drawScaledString(context, nameText, rowX + 6, cursorY, UITheme.Colors.TEXT_PRIMARY, 0.85f, rowWidth - 12);
+                RenderUtil.drawScaledString(context, nameText, rowX + 6, cursorY, UITheme.Colors.TEXT_PRIMARY, 0.85f,
+                        rowWidth - 12);
                 cursorY += nameHeight;
 
                 if (metaHeight > 0) {
@@ -964,7 +980,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 }
 
                 if (descHeight > 0) {
-                    drawWrappedText(context, attachment.description(), rowX + 6, cursorY, descWidth, UITheme.Colors.TEXT_TAG);
+                    drawWrappedText(context, attachment.description(), rowX + 6, cursorY, descWidth,
+                            UITheme.Colors.TEXT_TAG);
                     cursorY += descHeight;
                 }
 
@@ -1038,7 +1055,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     private void drawWrappedText(GuiGraphics context, String text, int textX, int textY, int maxWidth, int color) {
-        if (text == null || text.isEmpty()) return;
+        if (text == null || text.isEmpty())
+            return;
 
         int lineY = textY;
 
@@ -1074,7 +1092,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     private int getWrappedTextHeight(String text, int maxWidth) {
-        if (text == null || text.isEmpty()) return 10;
+        if (text == null || text.isEmpty())
+            return 10;
 
         int lines = 0;
 
@@ -1115,8 +1134,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         long archivedAt = postDetail != null ? postDetail.archivedAt() : postInfo.archivedAt();
 
         String dateText = updatedAt > 0
-            ? "Updated: " + formatDate(updatedAt)
-            : (archivedAt > 0 ? "Archived: " + formatDate(archivedAt) : "Date unknown");
+                ? "Updated: " + formatDate(updatedAt)
+                : (archivedAt > 0 ? "Archived: " + formatDate(archivedAt) : "Date unknown");
 
         if (!code.isEmpty()) {
             return String.format("%s • %s • %s", channel, code, dateText);
@@ -1129,39 +1148,48 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             return "Unknown";
         }
         return DateTimeFormatter.ofPattern("yyyy-MM-dd")
-            .withZone(ZoneId.systemDefault())
-            .format(Instant.ofEpochMilli(millis));
+                .withZone(ZoneId.systemDefault())
+                .format(Instant.ofEpochMilli(millis));
     }
 
     private String buildAttachmentMeta(ArchiveAttachment attachment) {
-        if (attachment == null) return "";
+        if (attachment == null)
+            return "";
         if (attachment.youtube() != null) {
             ArchiveAttachment.YoutubeInfo yt = attachment.youtube();
             List<String> parts = new ArrayList<>();
-            if (yt.title() != null && !yt.title().isEmpty()) parts.add(yt.title());
-            if (yt.authorName() != null && !yt.authorName().isEmpty()) parts.add("by " + yt.authorName());
+            if (yt.title() != null && !yt.title().isEmpty())
+                parts.add(yt.title());
+            if (yt.authorName() != null && !yt.authorName().isEmpty())
+                parts.add("by " + yt.authorName());
             return parts.isEmpty() ? "YouTube" : "YouTube • " + String.join(" • ", parts);
         }
         if (attachment.litematic() != null) {
             ArchiveAttachment.LitematicInfo info = attachment.litematic();
             List<String> parts = new ArrayList<>();
-            if (info.version() != null && !info.version().isEmpty()) parts.add("Version " + info.version());
-            if (info.size() != null && !info.size().isEmpty()) parts.add(info.size());
-            if (info.error() != null && !info.error().isEmpty()) parts.add("Error: " + info.error());
+            if (info.version() != null && !info.version().isEmpty())
+                parts.add("Version " + info.version());
+            if (info.size() != null && !info.size().isEmpty())
+                parts.add(info.size());
+            if (info.error() != null && !info.error().isEmpty())
+                parts.add("Error: " + info.error());
             return parts.isEmpty() ? "Litematic" : "Litematic • " + String.join(" • ", parts);
         }
         if (attachment.wdl() != null) {
             ArchiveAttachment.WdlInfo info = attachment.wdl();
             List<String> parts = new ArrayList<>();
-            if (info.version() != null && !info.version().isEmpty()) parts.add("Version " + info.version());
-            if (info.error() != null && !info.error().isEmpty()) parts.add("Error: " + info.error());
+            if (info.version() != null && !info.version().isEmpty())
+                parts.add("Version " + info.version());
+            if (info.error() != null && !info.error().isEmpty())
+                parts.add("Error: " + info.error());
             return parts.isEmpty() ? "WorldDL" : "WorldDL • " + String.join(" • ", parts);
         }
         return attachment.contentType() != null ? attachment.contentType() : "";
     }
 
     private void openAttachmentUrl(ArchiveAttachment attachment) {
-        if (attachment == null) return;
+        if (attachment == null)
+            return;
         String url = attachment.downloadUrl();
         if (url == null || url.isEmpty()) {
             return;
@@ -1174,30 +1202,38 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     private int getTagColor(String tag) {
-        if (tag == null) return TAG_BG_COLOR;
+        if (tag == null)
+            return TAG_BG_COLOR;
         String lower = tag.toLowerCase();
-        if (lower.contains("untested")) return 0xFF8C6E00;
-        if (lower.contains("broken")) return 0xFF8B1A1A;
-        if (lower.contains("tested") || lower.contains("functional")) return 0xFF1E7F1E;
-        if (lower.contains("recommend")) return 0xFFB8860B;
+        if (lower.contains("untested"))
+            return 0xFF8C6E00;
+        if (lower.contains("broken"))
+            return 0xFF8B1A1A;
+        if (lower.contains("tested") || lower.contains("functional"))
+            return 0xFF1E7F1E;
+        if (lower.contains("recommend"))
+            return 0xFFB8860B;
         return TAG_BG_COLOR;
     }
 
     private List<String> orderTags(String[] tags) {
         List<String> list = new ArrayList<>();
-        if (tags == null) return list;
+        if (tags == null)
+            return list;
         List<String> specials = List.of("untested", "broken", "tested & functional", "recommended");
         Set<String> seen = new HashSet<>();
         for (String s : specials) {
             for (String tag : tags) {
-                if (tag == null) continue;
+                if (tag == null)
+                    continue;
                 if (tag.toLowerCase().equals(s) && seen.add(tag.toLowerCase())) {
                     list.add(tag);
                 }
             }
         }
         for (String tag : tags) {
-            if (tag == null) continue;
+            if (tag == null)
+                continue;
             String key = tag.toLowerCase();
             if (seen.add(key)) {
                 list.add(tag);
@@ -1219,9 +1255,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         if (websiteButton != null && websiteButton.active && button == 0) {
             if (mouseX >= websiteButton.getX() &&
-                mouseX < websiteButton.getX() + websiteButton.getWidth() &&
-                mouseY >= websiteButton.getY() &&
-                mouseY < websiteButton.getY() + websiteButton.getHeight()) {
+                    mouseX < websiteButton.getX() + websiteButton.getWidth() &&
+                    mouseY >= websiteButton.getY() &&
+                    mouseY < websiteButton.getY() + websiteButton.getHeight()) {
                 openWebsiteLink();
                 return true;
             }
@@ -1229,9 +1265,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         if (discordThreadButton != null && discordThreadButton.active && button == 0) {
             if (mouseX >= discordThreadButton.getX() &&
-                mouseX < discordThreadButton.getX() + discordThreadButton.getWidth() &&
-                mouseY >= discordThreadButton.getY() &&
-                mouseY < discordThreadButton.getY() + discordThreadButton.getHeight()) {
+                    mouseX < discordThreadButton.getX() + discordThreadButton.getWidth() &&
+                    mouseY >= discordThreadButton.getY() &&
+                    mouseY < discordThreadButton.getY() + discordThreadButton.getHeight()) {
                 openDiscordThread();
                 return true;
             }
@@ -1269,8 +1305,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             int imageY = containerY + (containerHeight - actualImageHeight) / 2;
 
             if (mouseX >= imageX && mouseX < imageX + actualImageWidth &&
-                mouseY >= imageY && mouseY < imageY + actualImageHeight &&
-                mouseY >= contentStartY && mouseY < y + height) {
+                    mouseY >= imageY && mouseY < imageY + actualImageHeight &&
+                    mouseY >= contentStartY && mouseY < y + height) {
                 openImageViewer();
                 return true;
             }
@@ -1279,9 +1315,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         if (button == 0 && imageUrls != null && imageUrls.length > 1) {
             if (prevImageButton != null) {
                 boolean isOverPrev = mouseX >= prevImageButton.getX() &&
-                                    mouseX < prevImageButton.getX() + prevImageButton.getWidth() &&
-                                    mouseY >= prevImageButton.getY() &&
-                                    mouseY < prevImageButton.getY() + prevImageButton.getHeight();
+                        mouseX < prevImageButton.getX() + prevImageButton.getWidth() &&
+                        mouseY >= prevImageButton.getY() &&
+                        mouseY < prevImageButton.getY() + prevImageButton.getHeight();
                 if (isOverPrev) {
                     previousImage();
                     return true;
@@ -1290,9 +1326,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
             if (nextImageButton != null) {
                 boolean isOverNext = mouseX >= nextImageButton.getX() &&
-                                    mouseX < nextImageButton.getX() + nextImageButton.getWidth() &&
-                                    mouseY >= nextImageButton.getY() &&
-                                    mouseY < nextImageButton.getY() + nextImageButton.getHeight();
+                        mouseX < nextImageButton.getX() + nextImageButton.getWidth() &&
+                        mouseY >= nextImageButton.getY() &&
+                        mouseY < nextImageButton.getY() + nextImageButton.getHeight();
                 if (isOverNext) {
                     nextImage();
                     return true;
@@ -1342,16 +1378,15 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             int totalImages = (imageUrls != null) ? imageUrls.length : 1;
 
             imageViewer = new ImageViewerWidget(
-                client,
-                currentImageTexture,
-                originalImageWidth,
-                originalImageHeight,
-                currentImageIndex,
-                totalImages,
-                this::previousImageInViewer,
-                this::nextImageInViewer,
-                this::closeImageViewer
-            );
+                    client,
+                    currentImageTexture,
+                    originalImageWidth,
+                    originalImageHeight,
+                    currentImageIndex,
+                    totalImages,
+                    this::previousImageInViewer,
+                    this::nextImageInViewer,
+                    this::closeImageViewer);
             imageViewer.updateLayout(screenWidth, screenHeight);
         }
     }
@@ -1379,7 +1414,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-        if (scrollBar != null && (scrollBar.isDragging() || scrollBar.mouseDragged(mouseX, mouseY, button, deltaX, deltaY))) {
+        if (scrollBar != null
+                && (scrollBar.isDragging() || scrollBar.mouseDragged(mouseX, mouseY, button, deltaX, deltaY))) {
             double maxScroll = Math.max(0, contentHeight - height);
             scrollOffset = scrollBar.getScrollPercentage() * maxScroll;
             return true;
@@ -1434,12 +1470,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         return false;
     }
 
-    public String getCurrentMCVersion() {
-        return SharedConstants.getCurrentVersion().name();
-    }
-
     @Override
-    public void setFocused(boolean focused) {}
+    public void setFocused(boolean focused) {
+    }
 
     @Override
     public boolean isFocused() {

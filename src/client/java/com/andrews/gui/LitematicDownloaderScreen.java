@@ -25,7 +25,6 @@ import com.andrews.gui.widget.LoadingSpinner;
 import com.andrews.gui.widget.PostDetailPanel;
 import com.andrews.gui.widget.PostGridWidget;
 import com.andrews.gui.widget.TagFilterWidget;
-import com.andrews.gui.widget.ToastManager;
 import com.andrews.models.ArchiveChannel;
 import com.andrews.models.ArchivePostSummary;
 import com.andrews.models.ArchiveSearchResult;
@@ -49,7 +48,6 @@ public class LitematicDownloaderScreen extends Screen {
     private CustomButton submissionsButton;
     private CustomButton detailCloseButton;
     private LoadingSpinner loadingSpinner;
-    private ToastManager toastManager;
     private DiscordJoinPopup discordPopup;
     private String pendingDiscordUrl;
 
@@ -84,9 +82,6 @@ public class LitematicDownloaderScreen extends Screen {
         super.init();
 
         String previousSearchText = (searchField != null) ? searchField.getValue() : "";
-        if (this.minecraft != null) {
-            toastManager = new ToastManager(this.minecraft);
-        }
 
         int headerSpacing = 8;
         int closeButtonSize = 20;
@@ -306,9 +301,6 @@ public class LitematicDownloaderScreen extends Screen {
                         }
 
                         System.err.println("Error loading posts: " + errorMessage);
-                        if (toastManager != null) {
-                            toastManager.showError(userMessage);
-                        }
                     });
                 }
                 return null;
@@ -468,10 +460,6 @@ public class LitematicDownloaderScreen extends Screen {
         if (discordPopup != null) {
             discordPopup.render(context, mouseX, mouseY, delta);
         }
-
-        if (toastManager != null) {
-            toastManager.render(context, delta, mouseX, mouseY);
-        }
     }
 
 
@@ -514,15 +502,6 @@ public class LitematicDownloaderScreen extends Screen {
                 channelToggleButton.onPress(click);
             }
             return true;
-        }
-
-        if (button == 0 && toastManager != null) {
-            if (toastManager.mouseClicked(mouseX, mouseY)) {
-                return true;
-            }
-            if (toastManager.isMouseOverToast(mouseX, mouseY)) {
-                return true;
-            }
         }
 
         if (button == 0 && isMouseOverButton(closeButton, mouseX, mouseY)) {
