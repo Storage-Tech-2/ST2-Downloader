@@ -58,6 +58,7 @@ public class DownloadSettings {
 		setDefault("itemsPerPage", 20);
 		setDefault("tagFilter", "");
 		setDefault("joinedDiscord", false);
+		setDefault("selectedServerId", getDefaultServerId());
 		ensureJoinedDiscordMap();
 	}
 
@@ -212,6 +213,18 @@ public class DownloadSettings {
 		save();
 	}
 
+	public ServerEntry getSelectedServer() {
+		String id = config.has("selectedServerId") ? config.get("selectedServerId").getAsString() : getDefaultServerId();
+		return ServerDictionary.findById(id).orElse(ServerDictionary.getDefaultServer());
+	}
+
+	public void setSelectedServer(ServerEntry server) {
+		String id = server != null && server.id() != null && !server.id().isBlank()
+			? server.id()
+			: getDefaultServerId();
+		set("selectedServerId", id);
+	}
+
 	private File getConfigFile() {
 		Path configDir = FabricLoader.getInstance().getConfigDir();
 		return configDir.resolve(CONFIG_FILE).toFile();
@@ -231,6 +244,14 @@ public class DownloadSettings {
 		}
 		if (server.name() != null && !server.name().isBlank()) {
 			return server.name().toLowerCase();
+		}
+		return "default";
+	}
+
+	private String getDefaultServerId() {
+		ServerEntry def = ServerDictionary.getDefaultServer();
+		if (def != null && def.id() != null && !def.id().isBlank()) {
+			return def.id();
 		}
 		return "default";
 	}

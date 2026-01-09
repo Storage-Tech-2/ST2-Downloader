@@ -237,7 +237,13 @@ public class PostGridWidget implements Renderable, GuiEventListener {
             );
         } else {
             RenderUtil.fillRect(context, imgX, imgY, imgX + imgW, imgY + IMAGE_HEIGHT, UITheme.Colors.CONTAINER_BG);
-            RenderUtil.drawScaledString(context, "Loading...", imgX + 4, imgY + IMAGE_HEIGHT / 2 - 4, UITheme.Colors.TEXT_SUBTITLE, 0.8f);
+            boolean loading = post != null && post.id() != null && imageLoading.containsKey(post.id());
+            String status = loading ? "Loading..." : "No image";
+            int textWidth = (int) (client.font.width(status) * 0.8f);
+            int textHeight = (int) (client.font.lineHeight * 0.8f);
+            int textX = imgX + Math.max(0, (imgW - textWidth) / 2);
+            int textY = imgY + Math.max(0, (IMAGE_HEIGHT - textHeight) / 2);
+            RenderUtil.drawScaledString(context, status, textX, textY, UITheme.Colors.TEXT_SUBTITLE, 0.8f);
             ensureImageLoading(post);
         }
 

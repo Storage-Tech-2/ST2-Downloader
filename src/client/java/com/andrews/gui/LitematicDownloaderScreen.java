@@ -38,7 +38,7 @@ public class LitematicDownloaderScreen extends Screen {
     private static final int SIDEBAR_WIDTH = 200;
     private static final String DISCORD_INVITE_URL = "https://discord.gg/hztJMTsx2m";
     private static final String SUBMISSIONS_URL = "https://discord.com/channels/1375556143186837695/1375575317007040654";
-    private ServerEntry selectedServer = ServerDictionary.getDefaultServer();
+    private ServerEntry selectedServer = DownloadSettings.getInstance().getSelectedServer();
 
     private CustomTextField searchField;
     private PostGridWidget postGrid;
@@ -471,6 +471,7 @@ public class LitematicDownloaderScreen extends Screen {
         isLoading = false;
         isLoadingMore = false;
 
+        DownloadSettings.getInstance().setSelectedServer(target);
         if (channelPanel != null) {
             channelPanel.setChannels(channels);
             channelPanel.setChannelCounts(channelCounts);
