@@ -625,6 +625,7 @@ public class LitematicDownloaderScreen extends Screen {
         }
         if (showChannelPanel) {
             showChannelPanel = false;
+            this.init(this.width, this.height);
             return false;
         }
         if (showDetailOverlay) {
