@@ -1,8 +1,10 @@
 package com.andrews.config;
 
+import com.andrews.config.ServerDictionary;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
+import com.andrews.config.ServerDictionary.ServerEntry;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.File;
@@ -14,6 +16,7 @@ import java.nio.file.Path;
 public class DownloadSettings {
 	private static final String CONFIG_FILE = "st2-downloader-settings.json";
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+	private static final String KEY_JOINED_DISCORD_SERVERS = "joinedDiscordServers";
 	private static DownloadSettings INSTANCE;
 
 	private JsonObject config;
@@ -46,7 +49,7 @@ public class DownloadSettings {
 
 	private void applyDefaults() {
 		
-		setDefault("downloadPath", Path.of("schematics","ST2").toString());
+		setDefault("downloadPath", Path.of("schematics").toString());
 		setDefault("successToastsEnabled", false);
 		setDefault("errorToastsEnabled", true);
 		setDefault("infoToastsEnabled", false);
@@ -55,6 +58,7 @@ public class DownloadSettings {
 		setDefault("itemsPerPage", 20);
 		setDefault("tagFilter", "");
 		setDefault("joinedDiscord", false);
+		ensureJoinedDiscordMap();
 	}
 
 	private void setDefault(String key, Object value) {
@@ -74,8 +78,32 @@ public class DownloadSettings {
 	}
 
 	public String getAbsoluteDownloadPath() {
+		return getAbsoluteDownloadPath(ServerDictionary.getDefaultServer());
+	}
+
+	public String getDownloadPathForServer(ServerEntry server) {
+		Path configuredPath = Path.of(getDownloadPath());
+		Path root = configuredPath;
+
+		String fileName = configuredPath.getFileName() != null ? configuredPath.getFileName().toString() : "";
+		boolean endsWithKnownServer = ServerDictionary.getServers().stream()
+			.anyMatch(entry -> entry.downloadFolder() != null && !entry.downloadFolder().isBlank()
+				&& entry.downloadFolder().equalsIgnoreCase(fileName));
+
+		if (endsWithKnownServer && configuredPath.getParent() != null) {
+			root = configuredPath.getParent();
+		}
+
+		String folder = server != null && server.downloadFolder() != null && !server.downloadFolder().isBlank()
+			? server.downloadFolder()
+			: fileName;
+
+		return root.resolve(folder).toString();
+	}
+
+	public String getAbsoluteDownloadPath(ServerEntry server) {
 		Path gamePath = FabricLoader.getInstance().getGameDir();
-		return gamePath.resolve(getDownloadPath()).toString();
+		return gamePath.resolve(getDownloadPathForServer(server)).toString();
 	}
 
 	public String getGameDirectory() {
@@ -158,16 +186,53 @@ public class DownloadSettings {
 	}
 
 	public boolean hasJoinedDiscord() {
-		return config.has("joinedDiscord") && config.get("joinedDiscord").getAsBoolean();
+		return hasJoinedDiscord(ServerDictionary.getDefaultServer());
 	}
 
 	public void setJoinedDiscord(boolean joined) {
-		set("joinedDiscord", joined);
+		setJoinedDiscord(ServerDictionary.getDefaultServer(), joined);
+	}
+
+	public boolean hasJoinedDiscord(ServerEntry server) {
+		ServerEntry target = server != null ? server : ServerDictionary.getDefaultServer();
+		String key = getServerKey(target);
+		JsonObject map = ensureJoinedDiscordMap();
+		if (map.has(key)) {
+			return map.get(key).getAsBoolean();
+		}
+		// Fallback to legacy global flag for compatibility
+		return config.has("joinedDiscord") && config.get("joinedDiscord").getAsBoolean();
+	}
+
+	public void setJoinedDiscord(ServerEntry server, boolean joined) {
+		ServerEntry target = server != null ? server : ServerDictionary.getDefaultServer();
+		JsonObject map = ensureJoinedDiscordMap();
+		map.addProperty(getServerKey(target), joined);
+		config.add(KEY_JOINED_DISCORD_SERVERS, map);
+		save();
 	}
 
 	private File getConfigFile() {
 		Path configDir = FabricLoader.getInstance().getConfigDir();
 		return configDir.resolve(CONFIG_FILE).toFile();
+	}
+
+	private JsonObject ensureJoinedDiscordMap() {
+		if (!config.has(KEY_JOINED_DISCORD_SERVERS) || !config.get(KEY_JOINED_DISCORD_SERVERS).isJsonObject()) {
+			config.add(KEY_JOINED_DISCORD_SERVERS, new JsonObject());
+		}
+		return config.getAsJsonObject(KEY_JOINED_DISCORD_SERVERS);
+	}
+
+	private String getServerKey(ServerEntry server) {
+		if (server == null) return "default";
+		if (server.id() != null && !server.id().isBlank()) {
+			return server.id().toLowerCase();
+		}
+		if (server.name() != null && !server.name().isBlank()) {
+			return server.name().toLowerCase();
+		}
+		return "default";
 	}
 
 	private void save() {

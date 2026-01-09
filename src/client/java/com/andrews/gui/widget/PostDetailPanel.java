@@ -1,5 +1,7 @@
 package com.andrews.gui.widget;
 
+import com.andrews.config.ServerDictionary;
+import com.andrews.config.ServerDictionary.ServerEntry;
 import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchiveAttachment;
 import com.andrews.models.ArchivePostDetail;
@@ -53,6 +55,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     private final List<AttachmentHitbox> attachmentHitboxes = new ArrayList<>();
 
     private Consumer<String> discordLinkOpener;
+    private ServerEntry server = ServerDictionary.getDefaultServer();
 
     public PostDetailPanel(int x, int y, int width, int height) {
         this.x = x;
@@ -77,6 +80,11 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
     public void setDiscordLinkOpener(Consumer<String> opener) {
         this.discordLinkOpener = opener;
+    }
+
+    public void setServer(ServerEntry server) {
+        this.server = server != null ? server : ServerDictionary.getDefaultServer();
+        this.attachmentManager.setServer(this.server);
     }
 
     private int getDisplayImageWidth() {
@@ -184,7 +192,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         this.scrollOffset = 0;
         this.attachmentHitboxes.clear();
 
-        ArchiveNetworkManager.getPostDetails(post)
+        ArchiveNetworkManager.getPostDetails(server, post)
                 .thenAccept(this::handlePostDetailLoaded)
                 .exceptionally(throwable -> {
                     if (client != null) {
@@ -241,6 +249,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     private boolean hasWebsiteLink() {
+        if (!server.id().equals("st2")) {
+            return false;
+        }
         String id = getCurrentPostId();
         return id != null && !id.isBlank();
     }

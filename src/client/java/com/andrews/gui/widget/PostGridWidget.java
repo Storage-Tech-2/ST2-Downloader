@@ -1,5 +1,7 @@
 package com.andrews.gui.widget;
 
+import com.andrews.config.ServerDictionary;
+import com.andrews.config.ServerDictionary.ServerEntry;
 import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchivePostSummary;
 import com.andrews.network.ArchiveNetworkManager;
@@ -56,6 +58,7 @@ public class PostGridWidget implements Renderable, GuiEventListener {
         .connectTimeout(Duration.ofSeconds(10))
         .followRedirects(HttpClient.Redirect.NORMAL)
         .build();
+    private ServerEntry server = ServerDictionary.getDefaultServer();
 
     public interface OnPostClickListener {
         void onPostClick(ArchivePostSummary post);
@@ -88,6 +91,9 @@ public class PostGridWidget implements Renderable, GuiEventListener {
         this.scrollOffset = 0;
 
         if (this.posts.isEmpty()) {
+            imageTextures.clear();
+            imageLoading.clear();
+            imageSizes.clear();
             return;
         }
 
@@ -121,6 +127,10 @@ public class PostGridWidget implements Renderable, GuiEventListener {
 
     public void setBlocked(boolean blocked) {
         this.blocked = blocked;
+    }
+
+    public void setServer(ServerEntry server) {
+        this.server = server != null ? server : ServerDictionary.getDefaultServer();
     }
 
     @Override
@@ -366,7 +376,7 @@ public class PostGridWidget implements Renderable, GuiEventListener {
         if (post == null || post.id() == null) return;
         if (imageTextures.containsKey(post.id()) || imageLoading.containsKey(post.id())) return;
 
-        CompletableFuture<Void> future = ArchiveNetworkManager.getPostDetails(post)
+        CompletableFuture<Void> future = ArchiveNetworkManager.getPostDetails(server, post)
             .thenApply(detail -> {
                 if (detail == null || detail.images().isEmpty()) {
                     return null;

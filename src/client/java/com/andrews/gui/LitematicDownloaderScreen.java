@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.andrews.config.DownloadSettings;
+import com.andrews.config.ServerDictionary;
+import com.andrews.config.ServerDictionary.ServerEntry;
 import com.andrews.gui.theme.UITheme;
 import com.andrews.gui.widget.ChannelDescriptionWidget;
 import com.andrews.gui.widget.ChannelFilterPanel;
@@ -36,6 +38,7 @@ public class LitematicDownloaderScreen extends Screen {
     private static final int SIDEBAR_WIDTH = 200;
     private static final String DISCORD_INVITE_URL = "https://discord.gg/hztJMTsx2m";
     private static final String SUBMISSIONS_URL = "https://discord.com/channels/1375556143186837695/1375575317007040654";
+    private ServerEntry selectedServer = ServerDictionary.getDefaultServer();
 
     private CustomTextField searchField;
     private PostGridWidget postGrid;
@@ -43,6 +46,7 @@ public class LitematicDownloaderScreen extends Screen {
     private ChannelFilterPanel channelPanel;
     private ChannelDescriptionWidget channelDescriptionWidget;
     private TagFilterWidget tagFilterWidget;
+    private CustomButton serverButton;
     private CustomButton channelToggleButton;
     private CustomButton closeButton;
     private CustomButton submissionsButton;
@@ -67,7 +71,9 @@ public class LitematicDownloaderScreen extends Screen {
     private List<ArchivePostSummary> currentPosts = new ArrayList<>();
     private boolean showDetailOverlay = false;
     private boolean showChannelPanel = false;
+    private boolean showServerDropdown = false;
     private ArchiveChannel hoveredChannel = null;
+    private ServerEntry hoveredServer = null;
     private enum TagState { INCLUDE, EXCLUDE }
     private final Map<String, TagState> tagStates = new HashMap<>();
     private final Map<String, Integer> tagCounts = new HashMap<>();
@@ -81,16 +87,41 @@ public class LitematicDownloaderScreen extends Screen {
     protected void init() {
         super.init();
 
+        hoveredServer = null;
+        showServerDropdown = false;
         String previousSearchText = (searchField != null) ? searchField.getValue() : "";
 
         int headerSpacing = 8;
         int closeButtonSize = 20;
         int submissionsWidth = 50;
+        int serverButtonWidth = 100;
+        int channelButtonWidth = 60;
 
         loadingSpinner = new LoadingSpinner(this.width / 2 - 16, this.height / 2 - 16);
 
+        if (serverButton == null) {
+            serverButton = new CustomButton(
+                PADDING,
+                PADDING,
+                serverButtonWidth,
+                SEARCH_BAR_HEIGHT,
+                Component.nullToEmpty(getServerButtonLabel()),
+                button -> {
+                    showServerDropdown = !showServerDropdown;
+                    hoveredServer = null;
+                }
+            );
+        } else {
+            serverButton.setWidth(serverButtonWidth);
+            serverButton.setHeight(SEARCH_BAR_HEIGHT);
+            serverButton.setX(PADDING);
+            serverButton.setY(PADDING);
+            serverButton.setMessage(Component.nullToEmpty(getServerButtonLabel()));
+        }
+
         if (this.minecraft != null) {
-            int startX = PADDING + 110 + headerSpacing; // toggle width + spacing
+            int channelButtonX = PADDING + serverButtonWidth + headerSpacing;
+            int startX = channelButtonX + channelButtonWidth + headerSpacing;
             int rightReserve = PADDING + closeButtonSize + headerSpacing + submissionsWidth + headerSpacing;
             int availableWidth = Math.max(60, this.width - startX - rightReserve);
             int searchBarWidth = Math.max(120, availableWidth);
@@ -120,21 +151,22 @@ public class LitematicDownloaderScreen extends Screen {
                 submissionsWidth,
                 SEARCH_BAR_HEIGHT,
                 Component.nullToEmpty("Submit"),
-                button -> requestDiscordLink(SUBMISSIONS_URL)
+                button -> requestDiscordLink(getSubmissionsUrlForServer())
             );
         }
 
         channelToggleButton = new CustomButton(
+            PADDING + serverButtonWidth + headerSpacing,
             PADDING,
-            PADDING,
-            110,
+            channelButtonWidth,
             SEARCH_BAR_HEIGHT,
-            Component.nullToEmpty(showChannelPanel ? "Hide Channels" : "Show Channels"),
+            Component.nullToEmpty("Filters"),
             button -> {
                 showChannelPanel = !showChannelPanel;
                 this.init();
             }
         );
+
         int gridY = PADDING + PADDING/2 + SEARCH_BAR_HEIGHT;
         int gridHeight = this.height - gridY - PADDING;
         int gridWidth = this.width - PADDING;
@@ -142,17 +174,21 @@ public class LitematicDownloaderScreen extends Screen {
         if (postGrid == null) {
             postGrid = new PostGridWidget(PADDING / 2, gridY, gridWidth, gridHeight, this::onPostClick);
             postGrid.setOnEndReached(this::loadNextPage);
+            postGrid.setServer(selectedServer);
         } else {
             postGrid.setDimensions(PADDING / 2, gridY, gridWidth, gridHeight);
             postGrid.setOnEndReached(this::loadNextPage);
+            postGrid.setServer(selectedServer);
         }
 
         if (detailPanel == null) {
             detailPanel = new PostDetailPanel(PADDING, gridY, gridWidth, gridHeight);
             detailPanel.setDiscordLinkOpener(this::requestDiscordLink);
+            detailPanel.setServer(selectedServer);
         } else {
             detailPanel.setDimensions(PADDING, gridY, gridWidth, gridHeight);
             detailPanel.setDiscordLinkOpener(this::requestDiscordLink);
+            detailPanel.setServer(selectedServer);
         }
 
         int detailCloseSize = 20;
@@ -257,6 +293,7 @@ public class LitematicDownloaderScreen extends Screen {
             return;
         }
 
+        ServerEntry requestServer = selectedServer != null ? selectedServer : ServerDictionary.getDefaultServer();
         if (append) {
             isLoadingMore = true;
         } else {
@@ -267,8 +304,8 @@ public class LitematicDownloaderScreen extends Screen {
         List<String> includeTags = getTagList(TagState.INCLUDE);
         List<String> excludeTags = getTagList(TagState.EXCLUDE);
 
-        ArchiveNetworkManager.searchPosts(currentSearchQuery, selectedSort, currentTagFilter, includeTags, excludeTags, channelFilter, currentPage, itemsPerPage)
-            .thenAccept(this::handleSearchResponse)
+        ArchiveNetworkManager.searchPosts(requestServer, currentSearchQuery, selectedSort, currentTagFilter, includeTags, excludeTags, channelFilter, currentPage, itemsPerPage)
+            .thenAccept(result -> handleSearchResponse(requestServer, result))
             .exceptionally(throwable -> {
                 if (this.minecraft != null) {
                     this.minecraft.execute(() -> {
@@ -302,9 +339,21 @@ public class LitematicDownloaderScreen extends Screen {
             });
     }
 
-    private void handleSearchResponse(ArchiveSearchResult response) {
+    private void handleSearchResponse(ServerEntry responseServer, ArchiveSearchResult response) {
         if (this.minecraft != null) {
+            if (!isActiveServer(responseServer)) {
+                this.minecraft.execute(() -> {
+                    isLoading = false;
+                    isLoadingMore = false;
+                });
+                return;
+            }
             this.minecraft.execute(() -> {
+                if (response == null) {
+                    isLoading = false;
+                    isLoadingMore = false;
+                    return;
+                }
                 totalPages = response.totalPages();
                 totalItems = response.totalItems();
                 channelCounts.clear();
@@ -357,9 +406,98 @@ public class LitematicDownloaderScreen extends Screen {
         loadPage(true);
     }
 
+    private boolean isActiveServer(ServerEntry server) {
+        if (server == null) {
+            return false;
+        }
+        ServerEntry active = selectedServer != null ? selectedServer : ServerDictionary.getDefaultServer();
+        if (active.id() != null && server.id() != null) {
+            return active.id().equalsIgnoreCase(server.id());
+        }
+        if (active.name() != null && server.name() != null) {
+            return active.name().equalsIgnoreCase(server.name());
+        }
+        return server == active;
+    }
+
+    private ServerEntry getActiveServer() {
+        return selectedServer != null ? selectedServer : ServerDictionary.getDefaultServer();
+    }
+
+    private String getServerButtonLabel() {
+        ServerEntry server = getActiveServer();
+        if (server != null && server.name() != null && !server.name().isBlank()) {
+            return server.name();
+        }
+        return "Select Server";
+    }
+
+    private String getDiscordInviteUrlForServer() {
+        ServerEntry server = getActiveServer();
+        if (server != null && server.discordInviteUrl() != null && !server.discordInviteUrl().isBlank()) {
+            return server.discordInviteUrl();
+        }
+        return DISCORD_INVITE_URL;
+    }
+
+    private String getSubmissionsUrlForServer() {
+        ServerEntry server = getActiveServer();
+        if (server != null && server.submissionsUrl() != null && !server.submissionsUrl().isBlank()) {
+            return server.submissionsUrl();
+        }
+        return SUBMISSIONS_URL;
+    }
+
+    private void onServerSelected(ServerEntry server) {
+        ServerEntry target = server != null ? server : ServerDictionary.getDefaultServer();
+        if (isActiveServer(target)) {
+            showServerDropdown = false;
+            return;
+        }
+        selectedServer = target;
+        showServerDropdown = false;
+        hoveredServer = null;
+        hoveredChannel = null;
+        selectedChannelPath = null;
+        tagStates.clear();
+        tagCounts.clear();
+        channelCounts.clear();
+        channels = new ArrayList<>();
+        currentPosts.clear();
+        currentPage = 1;
+        totalPages = 1;
+        totalItems = 0;
+        noResultsFound = false;
+        isLoading = false;
+        isLoadingMore = false;
+
+        if (channelPanel != null) {
+            channelPanel.setChannels(channels);
+            channelPanel.setChannelCounts(channelCounts);
+        }
+        if (serverButton != null) {
+            serverButton.setMessage(Component.nullToEmpty(getServerButtonLabel()));
+        }
+        if (postGrid != null) {
+            postGrid.setServer(target);
+            postGrid.resetPosts(new ArrayList<>());
+        }
+        if (detailPanel != null) {
+            detailPanel.setServer(target);
+            detailPanel.clear();
+        }
+
+        loadChannels();
+        performSearch();
+    }
+
     private void loadChannels() {
-        ArchiveNetworkManager.getChannels()
+        ServerEntry requestServer = selectedServer != null ? selectedServer : ServerDictionary.getDefaultServer();
+        ArchiveNetworkManager.getChannels(requestServer)
             .thenAccept(list -> {
+                if (!isActiveServer(requestServer)) {
+                    return;
+                }
                 if (this.minecraft != null) {
                     this.minecraft.execute(() -> {
                         channels = list != null ? list.stream()
@@ -397,7 +535,7 @@ public class LitematicDownloaderScreen extends Screen {
         super.render(context, mouseX, mouseY, delta);
 
         if (postGrid != null) {
-            postGrid.setBlocked(showChannelPanel);
+            postGrid.setBlocked(showChannelPanel || showServerDropdown);
             postGrid.render(context, mouseX, mouseY, delta);
         }
 
@@ -425,6 +563,10 @@ public class LitematicDownloaderScreen extends Screen {
         }
 
         // Header controls rendered last so they remain visible and bright even when overlay dimming is active
+        if (serverButton != null) {
+            serverButton.render(context, mouseX, mouseY, delta);
+        }
+
         if (channelToggleButton != null) {
             channelToggleButton.render(context, mouseX, mouseY, delta);
         }
@@ -439,6 +581,10 @@ public class LitematicDownloaderScreen extends Screen {
 
         if (searchField != null) {
             searchField.render(context, mouseX, mouseY, delta);
+        }
+
+        if (showServerDropdown) {
+            renderServerDropdown(context, mouseX, mouseY, delta);
         }
 
         if (showDetailOverlay && detailPanel != null) {
@@ -490,6 +636,22 @@ public class LitematicDownloaderScreen extends Screen {
             return true;
         }
 
+        if (button == 0 && serverButton != null && isMouseOverButton(serverButton, mouseX, mouseY)) {
+            if (serverButton.active && this.minecraft != null) {
+                serverButton.playDownSound(this.minecraft.getSoundManager());
+            }
+            showServerDropdown = !showServerDropdown;
+            hoveredServer = null;
+            return true;
+        }
+
+        if (showServerDropdown) {
+            if (handleServerDropdownClick(mouseX, mouseY)) {
+                return true;
+            }
+            showServerDropdown = false;
+        }
+
         if (button == 0 && channelToggleButton != null && isMouseOverButton(channelToggleButton, mouseX, mouseY)) {
             if (channelToggleButton.active) {
                 if (this.minecraft != null) {
@@ -506,7 +668,7 @@ public class LitematicDownloaderScreen extends Screen {
         }
 
         if (button == 0 && isMouseOverButton(submissionsButton, mouseX, mouseY)) {
-            requestDiscordLink(SUBMISSIONS_URL);
+            requestDiscordLink(getSubmissionsUrlForServer());
             return true;
         }
 
@@ -540,6 +702,9 @@ public class LitematicDownloaderScreen extends Screen {
     }
 
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (showServerDropdown) {
+            return false;
+        }
         if (discordPopup != null) {
             return true;
         }
@@ -560,6 +725,9 @@ public class LitematicDownloaderScreen extends Screen {
     }
 
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (showServerDropdown) {
+            return false;
+        }
         if (discordPopup != null) {
             return true;
         }
@@ -581,6 +749,9 @@ public class LitematicDownloaderScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (showServerDropdown) {
+            return true;
+        }
         if (discordPopup != null) {
             if (discordPopup.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) {
                 return true;
@@ -612,6 +783,10 @@ public class LitematicDownloaderScreen extends Screen {
 
     @Override
     public boolean shouldCloseOnEsc() {
+        if (showServerDropdown) {
+            showServerDropdown = false;
+            return false;
+        }
         if (discordPopup != null) {
             clearDiscordPopup();
             return false;
@@ -672,7 +847,136 @@ public class LitematicDownloaderScreen extends Screen {
         }
     }
 
+    private void renderServerDropdown(GuiGraphics context, int mouseX, int mouseY, float delta) {
+        if (serverButton == null) return;
+        List<ServerEntry> servers = ServerDictionary.getServers();
+        if (servers.isEmpty()) return;
+
+        ServerDropdownLayout layout = buildServerDropdownLayout(servers);
+        int baseX = layout.x();
+        int baseY = layout.y();
+        int width = layout.width();
+        int itemHeight = layout.itemHeight();
+
+        hoveredServer = null;
+
+        RenderUtil.fillRect(context, baseX, baseY - 2, baseX + width, baseY + servers.size() * itemHeight + 2, UITheme.Colors.PANEL_BG_SECONDARY);
+
+        for (int i = 0; i < servers.size(); i++) {
+            ServerEntry server = servers.get(i);
+            int itemY = baseY + i * itemHeight;
+            boolean hovered = mouseX >= baseX && mouseX < baseX + width && mouseY >= itemY && mouseY < itemY + itemHeight;
+            boolean selected = isActiveServer(server);
+            if (hovered) {
+                hoveredServer = server;
+            }
+
+            int bgColor = selected ? UITheme.Colors.BUTTON_BG : UITheme.Colors.CONTAINER_BG;
+            if (hovered) {
+                bgColor = UITheme.Colors.BUTTON_BG_HOVER;
+            }
+
+            RenderUtil.fillRect(context, baseX + 1, itemY, baseX + width - 1, itemY + itemHeight, bgColor);
+            String serverName = server.name() != null && !server.name().isBlank()
+                ? server.name()
+                : (server.id() != null ? server.id() : "Server");
+            RenderUtil.drawString(
+                context,
+                this.font,
+                serverName,
+                baseX + UITheme.Dimensions.PADDING,
+                itemY + 4,
+                UITheme.Colors.TEXT_PRIMARY
+            );
+        }
+
+        ServerEntry descServer = hoveredServer != null ? hoveredServer : getActiveServer();
+        renderServerDescriptionBox(context, descServer, baseX, baseY, width, itemHeight, servers.size());
+    }
+
+    private ServerDropdownLayout buildServerDropdownLayout(List<ServerEntry> servers) {
+        int itemHeight = 18;
+        int labelWidth = 0;
+        for (ServerEntry server : servers) {
+            if (server == null) continue;
+            String name = server.name() != null ? server.name() : "Server";
+            labelWidth = Math.max(labelWidth, this.font.width(name));
+        }
+        int width = Math.max(140, labelWidth + UITheme.Dimensions.PADDING * 2);
+        int x = serverButton != null ? serverButton.getX() : PADDING;
+        int y = (serverButton != null ? serverButton.getY() + serverButton.getHeight() : PADDING) + 4;
+        if (x + width > this.width - PADDING) {
+            x = Math.max(PADDING, this.width - width - PADDING);
+        }
+        return new ServerDropdownLayout(x, y, width, itemHeight);
+    }
+
+    private record ServerDropdownLayout(int x, int y, int width, int itemHeight) {}
+
     // Tag rendering handled by TagFilterWidget; this method kept for compatibility.
+    private void renderServerDescriptionBox(GuiGraphics context, ServerEntry server, int dropdownX, int dropdownY, int dropdownWidth, int itemHeight, int itemCount) {
+        if (server == null || server.description() == null || server.description().isBlank()) {
+            return;
+        }
+        int boxPadding = UITheme.Dimensions.PADDING;
+        int boxX = dropdownX + dropdownWidth + boxPadding;
+        int boxY = dropdownY - 2;
+        int maxWidth = this.width - boxX - PADDING;
+        if (maxWidth <= 60) {
+            return;
+        }
+        int boxWidth = Math.min(240, maxWidth);
+        int textWidth = boxWidth - boxPadding * 2;
+        int textHeight = RenderUtil.getWrappedTextHeight(this.font, server.description(), textWidth);
+        int boxHeight = Math.max(itemHeight * itemCount + 4, textHeight + boxPadding * 2);
+
+        RenderUtil.fillRect(context, boxX, boxY, boxX + boxWidth, boxY + boxHeight, UITheme.Colors.PANEL_BG_SECONDARY);
+        RenderUtil.fillRect(context, boxX, boxY, boxX + boxWidth, boxY + 1, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, boxX, boxY + boxHeight - 1, boxX + boxWidth, boxY + boxHeight, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, boxX, boxY, boxX + 1, boxY + boxHeight, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, boxX + boxWidth - 1, boxY, boxX + boxWidth, boxY + boxHeight, UITheme.Colors.BUTTON_BORDER);
+
+        RenderUtil.drawWrappedText(
+            context,
+            this.font,
+            server.description(),
+            boxX + boxPadding,
+            boxY + boxPadding,
+            textWidth,
+            UITheme.Colors.TEXT_SUBTITLE
+        );
+    }
+
+    private boolean handleServerDropdownClick(double mouseX, double mouseY) {
+        if (!showServerDropdown || serverButton == null) {
+            return false;
+        }
+        List<ServerEntry> servers = ServerDictionary.getServers();
+        if (servers.isEmpty()) {
+            showServerDropdown = false;
+            return false;
+        }
+        ServerDropdownLayout layout = buildServerDropdownLayout(servers);
+        int x = layout.x();
+        int y = layout.y();
+        int width = layout.width();
+        int itemHeight = layout.itemHeight();
+        int totalHeight = servers.size() * itemHeight;
+
+        boolean inside = mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + totalHeight;
+        if (!inside) {
+            showServerDropdown = false;
+            hoveredServer = null;
+            return false;
+        }
+
+        int index = (int) ((mouseY - y) / itemHeight);
+        if (index >= 0 && index < servers.size()) {
+            onServerSelected(servers.get(index));
+            return true;
+        }
+        return false;
+    }
 
     private List<String> getDisplayedTags() {
         if (selectedChannelPath != null) {
@@ -733,22 +1037,25 @@ public class LitematicDownloaderScreen extends Screen {
         if (url == null || url.isBlank()) {
             return;
         }
-        if (DownloadSettings.getInstance().hasJoinedDiscord()) {
+        ServerEntry server = getActiveServer();
+        String inviteUrl = getDiscordInviteUrlForServer();
+        String serverName = server != null && server.name() != null ? server.name() : "this";
+        if (DownloadSettings.getInstance().hasJoinedDiscord(server)) {
             openUrlSafe(url);
             return;
         }
 
         pendingDiscordUrl = url;
-        String message = "These links live in the Storage Tech 2 Discord. Please join before continuing.";
+        String message = "These links live in the " + serverName + " Discord. Please join before continuing.";
         discordPopup = new DiscordJoinPopup(
-            "Join Storage Tech 2 Discord?",
+            "Join " + serverName + " Discord?",
             message,
             () -> {
-                DownloadSettings.getInstance().setJoinedDiscord(true);
+                DownloadSettings.getInstance().setJoinedDiscord(server, true);
                 openUrlSafe(pendingDiscordUrl);
                 clearDiscordPopup();
             },
-            () -> openUrlSafe(DISCORD_INVITE_URL),
+            () -> openUrlSafe(inviteUrl),
             this::clearDiscordPopup
         );
     }

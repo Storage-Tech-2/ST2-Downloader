@@ -1,5 +1,7 @@
 package com.andrews.network;
 
+import com.andrews.config.ServerDictionary;
+import com.andrews.config.ServerDictionary.ServerEntry;
 import com.andrews.models.ArchiveAttachment;
 import com.andrews.models.ArchiveChannel;
 import com.andrews.models.ArchiveImageInfo;
@@ -27,10 +29,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ArchiveNetworkManager {
-	private static final String DEFAULT_OWNER = "Storage-Tech-2";
-	private static final String DEFAULT_REPO = "Archive";
 	private static final String DEFAULT_BRANCH = "main";
 	private static final String RAW_BASE = "https://raw.githubusercontent.com";
 	public static final String USER_AGENT = "ST2Downloader/1.0 (+https://github.com/Storage-Tech-2/ST2-Downloader)";
@@ -41,11 +42,12 @@ public class ArchiveNetworkManager {
 		.connectTimeout(Duration.ofSeconds(TIMEOUT_SECONDS))
 		.build();
 
-	private static volatile ArchiveIndexCache cachedIndex;
-	private static volatile CompletableFuture<ArchiveIndexCache> indexFuture;
-	private static volatile Map<String, StyleInfo> cachedSchemaStyles = Map.of();
+	private static final Map<String, ArchiveIndexCache> CACHED_INDEXES = new ConcurrentHashMap<>();
+	private static final Map<String, CompletableFuture<ArchiveIndexCache>> INDEX_FUTURES = new ConcurrentHashMap<>();
+	private static final Map<String, Map<String, StyleInfo>> CACHED_SCHEMA_STYLES = new ConcurrentHashMap<>();
 
 	public static CompletableFuture<ArchiveSearchResult> searchPosts(
+		ServerEntry server,
 		String query,
 		String sort,
 		String tag,
@@ -55,7 +57,8 @@ public class ArchiveNetworkManager {
 		int page,
 		int itemsPerPage
 	) {
-		return ensureIndexLoaded().thenApply(index -> {
+		ServerEntry targetServer = normalizeServer(server);
+		return ensureIndexLoaded(targetServer).thenApply(index -> {
 			List<ArchivePostSummary> filtered = new ArrayList<>(filterPosts(index.posts(), query, tag, includeTags, excludeTags, channelPaths));
 			sortPosts(filtered, sort);
 
@@ -89,45 +92,75 @@ public class ArchiveNetworkManager {
 		String query,
 		String sort,
 		String tag,
+		List<String> includeTags,
+		List<String> excludeTags,
+		List<String> channelPaths,
 		int page,
 		int itemsPerPage
 	) {
-		return searchPosts(query, sort, tag, null, null, null, page, itemsPerPage);
+		return searchPosts(ServerDictionary.getDefaultServer(), query, sort, tag, includeTags, excludeTags, channelPaths, page, itemsPerPage);
+	}
+
+	public static CompletableFuture<ArchiveSearchResult> searchPosts(
+		String query,
+		String sort,
+		String tag,
+		int page,
+		int itemsPerPage
+	) {
+		return searchPosts(ServerDictionary.getDefaultServer(), query, sort, tag, null, null, null, page, itemsPerPage);
+	}
+
+	public static CompletableFuture<ArchivePostDetail> getPostDetails(ServerEntry server, ArchivePostSummary summary) {
+		ServerEntry targetServer = normalizeServer(server);
+		return fetchEntryDataAsync(targetServer, summary.channelPath(), summary.entryPath())
+			.thenApply(data -> toPostDetail(targetServer, summary, data));
 	}
 
 	public static CompletableFuture<ArchivePostDetail> getPostDetails(ArchivePostSummary summary) {
-		return fetchEntryDataAsync(summary.channelPath(), summary.entryPath())
-			.thenApply(data -> toPostDetail(summary, data));
+		return getPostDetails(ServerDictionary.getDefaultServer(), summary);
+	}
+
+	public static CompletableFuture<List<ArchiveChannel>> getChannels(ServerEntry server) {
+		return ensureIndexLoaded(normalizeServer(server)).thenApply(ArchiveIndexCache::channels);
 	}
 
 	public static CompletableFuture<List<ArchiveChannel>> getChannels() {
-		return ensureIndexLoaded().thenApply(ArchiveIndexCache::channels);
+		return getChannels(ServerDictionary.getDefaultServer());
+	}
+
+	public static void clearCache(ServerEntry server) {
+		String key = serverKey(normalizeServer(server));
+		CACHED_INDEXES.remove(key);
+		INDEX_FUTURES.remove(key);
+		CACHED_SCHEMA_STYLES.remove(key);
 	}
 
 	public static void clearCache() {
-		cachedIndex = null;
-		indexFuture = null;
+		CACHED_INDEXES.clear();
+		INDEX_FUTURES.clear();
+		CACHED_SCHEMA_STYLES.clear();
 	}
 
-	private static CompletableFuture<ArchiveIndexCache> loadIndexAsync() {
-		if (cachedIndex != null) {
-			return CompletableFuture.completedFuture(cachedIndex);
-		}
+	private static CompletableFuture<ArchiveIndexCache> loadIndexAsync(ServerEntry server) {
+		ServerEntry targetServer = normalizeServer(server);
+		String key = serverKey(targetServer);
 
-		return fetchConfigAsync().thenCompose(config -> {
-			cachedSchemaStyles = config.postStyle != null ? config.postStyle : Map.of();
+		return fetchConfigAsync(targetServer).thenCompose(config -> {
+			Map<String, StyleInfo> styles = config.postStyle != null ? config.postStyle : Map.of();
+			CACHED_SCHEMA_STYLES.put(key, styles);
+
 			List<ArchivePostSummary> posts = new ArrayList<>();
 			List<ArchiveChannel> channels = new ArrayList<>();
 
 			if (config.archiveChannels == null || config.archiveChannels.isEmpty()) {
 				ArchiveIndexCache cache = new ArchiveIndexCache(posts, channels);
-				cachedIndex = cache;
 				return CompletableFuture.completedFuture(cache);
 			}
 
 			List<CompletableFuture<ChannelBundle>> futures = new ArrayList<>();
 			for (ChannelRef channel : config.archiveChannels) {
-				futures.add(fetchChannelDataAsync(channel.path).thenApply(data -> new ChannelBundle(channel, data)));
+				futures.add(fetchChannelDataAsync(targetServer, channel.path).thenApply(data -> new ChannelBundle(channel, data)));
 			}
 
 			return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
@@ -154,31 +187,42 @@ public class ArchiveNetworkManager {
 							channel.availableTags != null ? channel.availableTags : List.of()
 						));
 					}
-					ArchiveIndexCache cache = new ArchiveIndexCache(posts, channels);
-					cachedIndex = cache;
-					return cache;
+					return new ArchiveIndexCache(posts, channels);
 				});
+		}).whenComplete((cache, throwable) -> {
+			if (throwable == null && cache != null) {
+				CACHED_INDEXES.put(key, cache);
+			} else {
+				INDEX_FUTURES.remove(key);
+			}
 		});
 	}
 
-	private static CompletableFuture<ArchiveIndexCache> ensureIndexLoaded() {
-		if (cachedIndex != null) {
-			return CompletableFuture.completedFuture(cachedIndex);
+	private static CompletableFuture<ArchiveIndexCache> ensureIndexLoaded(ServerEntry server) {
+		ServerEntry targetServer = normalizeServer(server);
+		String key = serverKey(targetServer);
+		ArchiveIndexCache cached = CACHED_INDEXES.get(key);
+		if (cached != null) {
+			return CompletableFuture.completedFuture(cached);
 		}
 
-		synchronized (ArchiveNetworkManager.class) {
-			if (cachedIndex != null) {
-				return CompletableFuture.completedFuture(cachedIndex);
-			}
-			if (indexFuture == null) {
-				indexFuture = loadIndexAsync().whenComplete((result, throwable) -> {
-					if (throwable != null) {
-						indexFuture = null;
-					}
-				});
-			}
-			return indexFuture;
+		return INDEX_FUTURES.computeIfAbsent(key, k -> loadIndexAsync(targetServer));
+	}
+
+	private static ServerEntry normalizeServer(ServerEntry server) {
+		return server != null ? server : ServerDictionary.getDefaultServer();
+	}
+
+	private static String serverKey(ServerEntry server) {
+		ServerEntry target = normalizeServer(server);
+		if (target.id() != null && !target.id().isBlank()) {
+			return target.id().toLowerCase(Locale.ROOT);
 		}
+		return target.name() != null ? target.name().toLowerCase(Locale.ROOT) : "default";
+	}
+
+	private static Map<String, StyleInfo> getSchemaStyles(ServerEntry server) {
+		return CACHED_SCHEMA_STYLES.getOrDefault(serverKey(server), Map.of());
 	}
 
 	private static List<ArchivePostSummary> filterPosts(List<ArchivePostSummary> posts, String query, String tagFilter, List<String> includeTags, List<String> excludeTags, List<String> channelPaths) {
@@ -285,7 +329,7 @@ public class ArchiveNetworkManager {
 		);
 	}
 
-	private static ArchivePostDetail toPostDetail(ArchivePostSummary summary, ArchiveEntryData data) {
+	private static ArchivePostDetail toPostDetail(ServerEntry server, ArchivePostSummary summary, ArchiveEntryData data) {
 		List<String> authors = new ArrayList<>();
 		if (data.authors != null) {
 			for (ArchiveAuthor author : data.authors) {
@@ -304,7 +348,7 @@ public class ArchiveNetworkManager {
 		List<ArchiveImageInfo> imageInfos = new ArrayList<>();
 		if (data.images != null) {
 			for (ArchiveImageData image : data.images) {
-				String url = resolveImagePath(image.path, summary.channelPath(), summary.entryPath());
+				String url = resolveImagePath(server, image.path, summary.channelPath(), summary.entryPath());
 				if (url != null && !url.isEmpty()) {
 					images.add(url);
 					imageInfos.add(new ArchiveImageInfo(
@@ -321,7 +365,7 @@ public class ArchiveNetworkManager {
 		if (data.attachments != null) {
 			for (ArchiveAttachmentData attachment : data.attachments) {
 				boolean canDownload = attachment.canDownload == null || attachment.canDownload;
-				String downloadUrl = canDownload ? resolveAttachmentPath(attachment.path, summary.channelPath(), summary.entryPath()) : attachment.url;
+				String downloadUrl = canDownload ? resolveAttachmentPath(server, attachment.path, summary.channelPath(), summary.entryPath()) : attachment.url;
 				String sizeText = attachment.litematic != null ? attachment.litematic.size : null;
 				ArchiveAttachment.YoutubeInfo youtubeInfo = null;
 				if (attachment.youtube != null) {
@@ -354,7 +398,7 @@ public class ArchiveNetworkManager {
 
 		List<ArchiveRecordSection> recordSections = toRecordSections(
 			data.records,
-			cachedSchemaStyles,
+			getSchemaStyles(server),
 			data.styles != null ? data.styles : Map.of()
 		);
 
@@ -532,22 +576,22 @@ public class ArchiveNetworkManager {
 		return withoutMarkdownLinks.replaceAll("https?://\\S+", "(link removed)");
 	}
 
-	private static CompletableFuture<ArchiveConfig> fetchConfigAsync() {
-		return fetchJsonAsync("config.json").thenApply(json -> GSON.fromJson(json, ArchiveConfig.class));
+	private static CompletableFuture<ArchiveConfig> fetchConfigAsync(ServerEntry server) {
+		return fetchJsonAsync(server, "config.json").thenApply(json -> GSON.fromJson(json, ArchiveConfig.class));
 	}
 
-	private static CompletableFuture<ChannelData> fetchChannelDataAsync(String channelPath) {
+	private static CompletableFuture<ChannelData> fetchChannelDataAsync(ServerEntry server, String channelPath) {
 		String path = normalizePath(channelPath) + "/data.json";
-		return fetchJsonAsync(path).thenApply(json -> GSON.fromJson(json, ChannelData.class));
+		return fetchJsonAsync(server, path).thenApply(json -> GSON.fromJson(json, ChannelData.class));
 	}
 
-	private static CompletableFuture<ArchiveEntryData> fetchEntryDataAsync(String channelPath, String entryPath) {
+	private static CompletableFuture<ArchiveEntryData> fetchEntryDataAsync(ServerEntry server, String channelPath, String entryPath) {
 		String path = normalizePath(channelPath) + "/" + normalizePath(entryPath) + "/data.json";
-		return fetchJsonAsync(path).thenApply(json -> GSON.fromJson(json, ArchiveEntryData.class));
+		return fetchJsonAsync(server, path).thenApply(json -> GSON.fromJson(json, ArchiveEntryData.class));
 	}
 
-	private static CompletableFuture<String> fetchJsonAsync(String path) {
-		String url = buildRawUrl(path);
+	private static CompletableFuture<String> fetchJsonAsync(ServerEntry server, String path) {
+		String url = buildRawUrl(server, path);
 		HttpRequest request = HttpRequest.newBuilder()
 			.uri(URI.create(url))
 			.header("Accept", "application/json")
@@ -564,24 +608,28 @@ public class ArchiveNetworkManager {
 			});
 	}
 
-	private static String resolveImagePath(String path, String channelPath, String entryPath) {
+	private static String resolveImagePath(ServerEntry server, String path, String channelPath, String entryPath) {
 		if (path == null || path.isEmpty()) {
 			return null;
 		}
 		String basePath = normalizePath(channelPath) + "/" + normalizePath(entryPath);
-		return buildRawUrl(basePath + "/" + path);
+		return buildRawUrl(server, basePath + "/" + path);
 	}
 
-	private static String resolveAttachmentPath(String path, String channelPath, String entryPath) {
+	private static String resolveAttachmentPath(ServerEntry server, String path, String channelPath, String entryPath) {
 		if (path == null || path.isEmpty()) {
 			return null;
 		}
 		String basePath = normalizePath(channelPath) + "/" + normalizePath(entryPath);
-		return buildRawUrl(basePath + "/" + path);
+		return buildRawUrl(server, basePath + "/" + path);
 	}
 
-	private static String buildRawUrl(String path) {
-		return RAW_BASE + "/" + DEFAULT_OWNER + "/" + DEFAULT_REPO + "/" + DEFAULT_BRANCH + "/" + normalizePath(path);
+	private static String buildRawUrl(ServerEntry server, String path) {
+		ServerEntry target = normalizeServer(server);
+		String owner = target.owner() != null && !target.owner().isBlank() ? target.owner() : "Storage-Tech-2";
+		String repo = target.repo() != null && !target.repo().isBlank() ? target.repo() : "Archive";
+		String branch = target.branch() != null && !target.branch().isBlank() ? target.branch() : DEFAULT_BRANCH;
+		return RAW_BASE + "/" + owner + "/" + repo + "/" + branch + "/" + normalizePath(path);
 	}
 
 	private static String normalizePath(String path) {

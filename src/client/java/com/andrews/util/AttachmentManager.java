@@ -1,6 +1,8 @@
 package com.andrews.util;
 
 import com.andrews.config.DownloadSettings;
+import com.andrews.config.ServerDictionary;
+import com.andrews.config.ServerDictionary.ServerEntry;
 import com.andrews.models.ArchiveAttachment;
 
 import java.net.URI;
@@ -45,6 +47,7 @@ public class AttachmentManager {
     private final Minecraft client;
     private List<ArchiveAttachment> availableFiles = new ArrayList<>();
     private String downloadStatus = "";
+    private ServerEntry server = ServerDictionary.getDefaultServer();
 
     public AttachmentManager(Minecraft client) {
         this.client = client;
@@ -57,6 +60,10 @@ public class AttachmentManager {
 
     public void setAvailableFiles(List<ArchiveAttachment> attachments) {
         availableFiles = attachments != null ? new ArrayList<>(attachments) : new ArrayList<>();
+    }
+
+    public void setServer(ServerEntry server) {
+        this.server = server != null ? server : ServerDictionary.getDefaultServer();
     }
 
     public List<ArchiveAttachment> getAvailableFiles() {
@@ -256,9 +263,10 @@ public class AttachmentManager {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 boolean isWorldDownload = attachment != null && attachment.wdl() != null;
+                ServerEntry targetServer = server != null ? server : ServerDictionary.getDefaultServer();
                 Path baseTargetDir = isWorldDownload
                         ? Paths.get(DownloadSettings.getInstance().getGameDirectory(), "saves")
-                        : Paths.get(DownloadSettings.getInstance().getAbsoluteDownloadPath());
+                        : Paths.get(DownloadSettings.getInstance().getAbsoluteDownloadPath(targetServer));
                 Files.createDirectories(baseTargetDir);
 
                 if (isWorldDownload) {
