@@ -89,8 +89,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     private CustomButton websiteButton;
 
     private ScrollBar scrollBar;
-
-    private DropdownWidget schematicDropdown;
     private List<ArchiveAttachment> availableFiles;
     private String downloadStatus = "";
     private final List<AttachmentHitbox> attachmentHitboxes = new ArrayList<>();
@@ -107,8 +105,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         this.imageLoadingSpinner = new LoadingSpinner(0, 0);
         int scrollBarYOffset = 30;
         this.scrollBar = new ScrollBar(x + width - 8, y + scrollBarYOffset, height - scrollBarYOffset);
-        this.schematicDropdown = new DropdownWidget(x, y, width - UITheme.Dimensions.PADDING * 2,
-                this::onSchematicSelected);
     }
 
     public void setDimensions(int x, int y, int width, int height) {
@@ -118,22 +114,10 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         this.height = height;
         int scrollBarYOffset = 30;
         this.scrollBar = new ScrollBar(x + width - 8, y + scrollBarYOffset, height - scrollBarYOffset);
-        if (schematicDropdown != null) {
-            schematicDropdown.setPosition(x, y);
-            if (schematicDropdown.isOpen()) {
-                schematicDropdown.close();
-            }
-        }
     }
 
     public void setDiscordLinkOpener(Consumer<String> opener) {
         this.discordLinkOpener = opener;
-    }
-
-    public void closeDropdown() {
-        if (schematicDropdown != null && schematicDropdown.isOpen()) {
-            schematicDropdown.close();
-        }
     }
 
     private int getDisplayImageWidth() {
@@ -509,34 +493,16 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         this.websiteButton = null;
         this.preloadingImages.clear();
         this.imageCache.clear();
-        if (schematicDropdown != null) {
-            schematicDropdown.close();
-            schematicDropdown.setStatusMessage("");
-        }
-    }
-
-    private void onSchematicSelected(DropdownWidget.DropdownItem item) {
-        if (item == null || !(item.getData() instanceof ArchiveAttachment))
-            return;
-
-        ArchiveAttachment file = (ArchiveAttachment) item.getData();
-        downloadSchematic(file);
     }
 
     private void downloadSchematic(ArchiveAttachment file) {
         downloadStatus = "Downloading...";
-        if (schematicDropdown != null) {
-            schematicDropdown.setStatusMessage(downloadStatus);
-        }
 
         CompletableFuture.runAsync(() -> {
             String downloadUrl = file.downloadUrl();
             if (downloadUrl == null || downloadUrl.isEmpty()) {
                 client.execute(() -> {
                     downloadStatus = "Invalid download URL";
-                    if (schematicDropdown != null) {
-                        schematicDropdown.setStatusMessage(downloadStatus);
-                    }
                 });
                 System.err.println("[Download] Invalid download URL");
                 return;
@@ -595,9 +561,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             System.err.println("[Download] " + errorMsg);
             client.execute(() -> {
                 downloadStatus = errorMsg;
-                if (schematicDropdown != null) {
-                    schematicDropdown.setStatusMessage(downloadStatus);
-                }
             });
             return;
         }
@@ -610,9 +573,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                         boolean attemptedAutoLoad = shouldAutoLoadSchematic(file, finalPath);
                         boolean autoLoaded = attemptedAutoLoad && LitematicaAutoLoader.loadIntoWorld(finalPath);
                         downloadStatus = buildDownloadStatus(result, finalFileName, attemptedAutoLoad, autoLoaded);
-                        if (schematicDropdown != null) {
-                            schematicDropdown.setStatusMessage(downloadStatus);
-                        }
                         System.out.println("Downloaded to: " + finalPath.toAbsolutePath());
                     });
                 })
@@ -646,9 +606,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             }
 
             downloadStatus = errorMsg;
-            if (schematicDropdown != null) {
-                schematicDropdown.setStatusMessage(downloadStatus);
-            }
             System.err.println("Failed to download schematic: " + e.getMessage());
             e.printStackTrace();
         });
@@ -764,10 +721,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         int renderMouseX = mouseX;
         int renderMouseY = mouseY;
-        if (schematicDropdown != null && schematicDropdown.isOpen() && schematicDropdown.isMouseOver(mouseX, mouseY)) {
-            renderMouseX = -1;
-            renderMouseY = -1;
-        }
 
         context.fill(x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
 
@@ -1023,10 +976,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         context.disableScissor();
 
-        if (schematicDropdown != null && schematicDropdown.isOpen()) {
-            schematicDropdown.render(context, mouseX, mouseY, delta);
-        }
-
         if (contentHeight > height) {
             scrollBar.setScrollData(contentHeight, height);
             scrollBar.setScrollPercentage(scrollOffset / Math.max(1, contentHeight - height));
@@ -1273,15 +1222,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             }
         }
 
-        if (schematicDropdown != null && schematicDropdown.isOpen()) {
-            if (schematicDropdown.isMouseOver(mouseX, mouseY)) {
-                boolean handled = schematicDropdown.mouseClicked(mouseX, mouseY, button);
-                return handled;
-            } else {
-                schematicDropdown.close();
-            }
-        }
-
         if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
             return false;
         }
@@ -1437,12 +1377,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (imageViewer != null) {
             return true;
-        }
-
-        if (schematicDropdown != null && schematicDropdown.isOpen()) {
-            if (schematicDropdown.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) {
-                return true;
-            }
         }
 
         if (mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height) {

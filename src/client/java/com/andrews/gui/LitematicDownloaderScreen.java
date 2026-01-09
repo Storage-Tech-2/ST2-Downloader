@@ -165,9 +165,6 @@ public class LitematicDownloaderScreen extends Screen {
                 Component.nullToEmpty("X"),
                 button -> {
                     showDetailOverlay = false;
-                    if (detailPanel != null) {
-                        detailPanel.closeDropdown();
-                    }
                 }
             );
             detailCloseButton.setRenderAsXIcon(true);
@@ -300,6 +297,7 @@ public class LitematicDownloaderScreen extends Screen {
                             userMessage = "Search failed: Unknown error";
                         }
 
+                        System.err.println(userMessage);
                         System.err.println("Error loading posts: " + errorMessage);
                     });
                 }
