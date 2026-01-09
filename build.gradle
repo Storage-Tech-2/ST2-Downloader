@@ -59,8 +59,6 @@ dependencies {
 	modImplementation "com.github.sakura-ryoko:litematica:${project.litematica_version}"
 
 	implementation 'com.google.code.gson:gson:2.10.1'
-
-	include(implementation("org.sejda.imageio:webp-imageio:0.1.6"))
 }
 
 processResources {
