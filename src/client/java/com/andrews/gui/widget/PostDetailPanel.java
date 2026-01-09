@@ -94,7 +94,6 @@ public class PostDetailPanel implements Drawable, Element {
 
     private ScrollBar scrollBar;
 
-    private DropdownWidget schematicDropdown;
     private List<ArchiveAttachment> availableFiles;
     private String downloadStatus = "";
     private final List<AttachmentHitbox> attachmentHitboxes = new ArrayList<>();
@@ -111,7 +110,6 @@ public class PostDetailPanel implements Drawable, Element {
         this.imageLoadingSpinner = new LoadingSpinner(0, 0);
         int scrollBarYOffset = 30;
         this.scrollBar = new ScrollBar(x + width - 8, y + scrollBarYOffset, height - scrollBarYOffset);
-        this.schematicDropdown = new DropdownWidget(x, y, width - UITheme.Dimensions.PADDING * 2, this::onSchematicSelected);
     }
 
     public void setDimensions(int x, int y, int width, int height) {
@@ -121,22 +119,10 @@ public class PostDetailPanel implements Drawable, Element {
         this.height = height;
         int scrollBarYOffset = 30;
         this.scrollBar = new ScrollBar(x + width - 8, y + scrollBarYOffset, height - scrollBarYOffset);
-        if (schematicDropdown != null) {
-            schematicDropdown.setPosition(x, y);
-            if (schematicDropdown.isOpen()) {
-                schematicDropdown.close();
-            }
-        }
     }
 
     public void setDiscordLinkOpener(Consumer<String> opener) {
         this.discordLinkOpener = opener;
-    }
-
-    public void closeDropdown() {
-        if (schematicDropdown != null && schematicDropdown.isOpen()) {
-            schematicDropdown.close();
-        }
     }
 
     private int getDisplayImageWidth() {
@@ -508,33 +494,16 @@ public class PostDetailPanel implements Drawable, Element {
         this.websiteButton = null;
         this.preloadingImages.clear();
         this.imageCache.clear();
-        if (schematicDropdown != null) {
-            schematicDropdown.close();
-            schematicDropdown.setStatusMessage("");
-        }
-    }
-
-    private void onSchematicSelected(DropdownWidget.DropdownItem item) {
-        if (item == null || !(item.getData() instanceof ArchiveAttachment)) return;
-
-        ArchiveAttachment file = (ArchiveAttachment) item.getData();
-        downloadSchematic(file);
     }
 
     private void downloadSchematic(ArchiveAttachment file) {
         downloadStatus = "Downloading...";
-        if (schematicDropdown != null) {
-            schematicDropdown.setStatusMessage(downloadStatus);
-        }
 
         CompletableFuture.runAsync(() -> {
             String downloadUrl = file.downloadUrl();
             if (downloadUrl == null || downloadUrl.isEmpty()) {
                 client.execute(() -> {
                     downloadStatus = "Invalid download URL";
-                    if (schematicDropdown != null) {
-                        schematicDropdown.setStatusMessage(downloadStatus);
-                    }
                 });
                 System.err.println("[Download] Invalid download URL");
                 return;
@@ -593,9 +562,6 @@ public class PostDetailPanel implements Drawable, Element {
             System.err.println("[Download] " + errorMsg);
             client.execute(() -> {
                 downloadStatus = errorMsg;
-                if (schematicDropdown != null) {
-                    schematicDropdown.setStatusMessage(downloadStatus);
-                }
             });
             return;
         }
@@ -608,9 +574,6 @@ public class PostDetailPanel implements Drawable, Element {
                     boolean attemptedAutoLoad = shouldAutoLoadSchematic(file, finalPath);
                     boolean autoLoaded = attemptedAutoLoad && LitematicaAutoLoader.loadIntoWorld(finalPath);
                     downloadStatus = buildDownloadStatus(result, finalFileName, attemptedAutoLoad, autoLoaded);
-                    if (schematicDropdown != null) {
-                        schematicDropdown.setStatusMessage(downloadStatus);
-                    }
                     System.out.println("Downloaded to: " + finalPath.toAbsolutePath());
                 });
             })
@@ -643,9 +606,6 @@ public class PostDetailPanel implements Drawable, Element {
             }
 
             downloadStatus = errorMsg;
-            if (schematicDropdown != null) {
-                schematicDropdown.setStatusMessage(downloadStatus);
-            }
             System.err.println("Failed to download schematic: " + e.getMessage());
             e.printStackTrace();
         });
@@ -762,11 +722,6 @@ public class PostDetailPanel implements Drawable, Element {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         int renderMouseX = mouseX;
         int renderMouseY = mouseY;
-        if (schematicDropdown != null && schematicDropdown.isOpen() && schematicDropdown.isMouseOver(mouseX, mouseY)) {
-            renderMouseX = -1;
-            renderMouseY = -1;
-        }
-
         context.fill(x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
 
         context.fill(x, y, x + 1, y + height, UITheme.Colors.BUTTON_BORDER);
@@ -774,8 +729,8 @@ public class PostDetailPanel implements Drawable, Element {
         if (postInfo == null) {
             String text = "Select a schematic to view details";
             int textWidth = client.textRenderer.getWidth(text);
-            context.drawTextWithShadow(client.textRenderer, text,
-                x + (width - textWidth) / 2, y + height / 2 - 4, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawText(client.textRenderer, text,
+                x + (width - textWidth) / 2, y + height / 2 - 4, UITheme.Colors.TEXT_SUBTITLE, false);
             return;
         }
 
@@ -819,8 +774,8 @@ public class PostDetailPanel implements Drawable, Element {
             context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight, UITheme.Colors.CONTAINER_BG);
             String noImg = isCompactMode() ? "..." : "No image";
             int tw = client.textRenderer.getWidth(noImg);
-            context.drawTextWithShadow(client.textRenderer, noImg,
-                containerX + (containerWidth - tw) / 2, containerY + containerHeight / 2 - 4, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawText(client.textRenderer, noImg,
+                containerX + (containerWidth - tw) / 2, containerY + containerHeight / 2 - 4, UITheme.Colors.TEXT_SUBTITLE, false);
         }
 
         currentY += containerHeight + UITheme.Dimensions.PADDING;
@@ -847,7 +802,7 @@ public class PostDetailPanel implements Drawable, Element {
                 prevImageButton.render(context, renderMouseX, renderMouseY, delta);
             }
 
-            context.drawTextWithShadow(client.textRenderer, indicator, indicatorX, btnY + 4, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawText(client.textRenderer, indicator, indicatorX, btnY + 4, UITheme.Colors.TEXT_SUBTITLE, false);
 
             if (nextImageButton != null) {
                 nextImageButton.render(context, renderMouseX, renderMouseY, delta);
@@ -864,7 +819,7 @@ public class PostDetailPanel implements Drawable, Element {
         contentHeight += titleHeight + 8;
 
         String metaLine = buildMetaLine();
-        context.drawTextWithShadow(client.textRenderer, metaLine, x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+        context.drawText(client.textRenderer, metaLine, x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE, false);
         currentY += 16;
         contentHeight += 16;
 
@@ -878,7 +833,7 @@ public class PostDetailPanel implements Drawable, Element {
 
         String[] tags = postInfo.tags();
         if (tags != null && tags.length > 0) {
-            context.drawTextWithShadow(client.textRenderer, "Tags:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawText(client.textRenderer, "Tags:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE, false);
             currentY += 12;
             contentHeight += 12;
 
@@ -891,7 +846,7 @@ public class PostDetailPanel implements Drawable, Element {
                     contentHeight += 14;
                 }
                 context.fill(tagX, currentY, tagX + tagWidth, currentY + 12, getTagColor(tag));
-                context.drawTextWithShadow(client.textRenderer, tag, tagX + 4, currentY + 2, UITheme.Colors.TEXT_TAG);
+                context.drawText(client.textRenderer, tag, tagX + 4, currentY + 2, UITheme.Colors.TEXT_TAG, false);
                 tagX += tagWidth + 4;
             }
             currentY += 16;
@@ -904,7 +859,7 @@ public class PostDetailPanel implements Drawable, Element {
             for (ArchiveRecordSection section : postDetail.recordSections()) {
                 if (section == null) continue;
                 String header = section.title() != null ? section.title() : "Details";
-                context.drawTextWithShadow(client.textRenderer, header + ":", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+                context.drawText(client.textRenderer, header + ":", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE, false);
                 currentY += 12;
                 contentHeight += 12;
 
@@ -923,12 +878,12 @@ public class PostDetailPanel implements Drawable, Element {
             }
         } else if (isLoadingDetails) {
             currentY += 8;
-            context.drawTextWithShadow(client.textRenderer, "Loading details...", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawText(client.textRenderer, "Loading details...", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE, false);
             contentHeight += 20;
         }
 
         if (availableFiles != null && !availableFiles.isEmpty()) {
-            context.drawTextWithShadow(client.textRenderer, "Attachments:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawText(client.textRenderer, "Attachments:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE, false);
             currentY += 12;
             contentHeight += 12;
 
@@ -958,7 +913,7 @@ public class PostDetailPanel implements Drawable, Element {
                 cursorY += nameHeight;
 
                 if (metaHeight > 0) {
-                    context.drawTextWithShadow(client.textRenderer, meta, rowX + 6, cursorY - 2, UITheme.Colors.TEXT_SUBTITLE);
+                    context.drawText(client.textRenderer, meta, rowX + 6, cursorY - 2, UITheme.Colors.TEXT_SUBTITLE, false);
                     cursorY += metaHeight;
                 }
 
@@ -1004,10 +959,6 @@ public class PostDetailPanel implements Drawable, Element {
         contentHeight += UITheme.Dimensions.PADDING * 2;
 
         context.disableScissor();
-
-        if (schematicDropdown != null && schematicDropdown.isOpen()) {
-            schematicDropdown.render(context, mouseX, mouseY, delta);
-        }
 
         if (contentHeight > height) {
             scrollBar.setScrollData(contentHeight, height);
@@ -1057,7 +1008,7 @@ public class PostDetailPanel implements Drawable, Element {
                 int testWidth = client.textRenderer.getWidth(testLine);
 
                 if (testWidth > maxWidth && !line.isEmpty()) {
-                    context.drawTextWithShadow(client.textRenderer, line.toString(), textX, lineY, color);
+                    context.drawText(client.textRenderer, line.toString(), textX, lineY, color, false);
                     line = new StringBuilder(word);
                     lineY += 10;
                 } else {
@@ -1066,7 +1017,7 @@ public class PostDetailPanel implements Drawable, Element {
             }
 
             if (!line.isEmpty()) {
-                context.drawTextWithShadow(client.textRenderer, line.toString(), textX, lineY, color);
+                context.drawText(client.textRenderer, line.toString(), textX, lineY, color, false);
                 lineY += 10;
             }
         }
@@ -1236,15 +1187,6 @@ public class PostDetailPanel implements Drawable, Element {
             }
         }
 
-        if (schematicDropdown != null && schematicDropdown.isOpen()) {
-            if (schematicDropdown.isMouseOver(mouseX, mouseY)) {
-                boolean handled = schematicDropdown.mouseClicked(mouseX, mouseY, button);
-                return handled;
-            } else {
-                schematicDropdown.close();
-            }
-        }
-
         if (mouseX < x || mouseX >= x + width || mouseY < y || mouseY >= y + height) {
             return false;
         }
@@ -1400,12 +1342,6 @@ public class PostDetailPanel implements Drawable, Element {
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (imageViewer != null) {
             return true;
-        }
-
-        if (schematicDropdown != null && schematicDropdown.isOpen()) {
-            if (schematicDropdown.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) {
-                return true;
-            }
         }
 
         if (mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height) {

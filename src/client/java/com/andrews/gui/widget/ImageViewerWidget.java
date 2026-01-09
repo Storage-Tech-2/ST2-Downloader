@@ -178,7 +178,7 @@ public class ImageViewerWidget {
 
         drawNavigationBackground(context, prevBtnX, navY, nextBtnX);
 
-        context.drawTextWithShadow(client.textRenderer, pageText, textX, textY, UITheme.Colors.TEXT_SUBTITLE);
+        context.drawText(client.textRenderer, pageText, textX, textY, UITheme.Colors.TEXT_SUBTITLE, false);
 
         if (prevButton != null) {
             prevButton.render(context, mouseX, mouseY, delta);

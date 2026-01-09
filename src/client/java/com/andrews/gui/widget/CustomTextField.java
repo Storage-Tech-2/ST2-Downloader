@@ -232,7 +232,7 @@ public class CustomTextField extends TextFieldWidget {
 
 	private void drawPlaceholder(DrawContext context, int x, int y) {
 		if (placeholderText != null) {
-			context.drawTextWithShadow(client.textRenderer, placeholderText, x, y, UITheme.Colors.TEXT_MUTED);
+			context.drawText(client.textRenderer, placeholderText, x, y, UITheme.Colors.TEXT_MUTED, false);
 		}
 	}
 
@@ -240,7 +240,7 @@ public class CustomTextField extends TextFieldWidget {
 		int color = this.isFocused() ? UITheme.Colors.TEXT_PRIMARY : UITheme.Colors.TEXT_SUBTITLE;
 
 		context.enableScissor(textX, this.getY(), textX + maxTextWidth, this.getY() + this.getHeight());
-		context.drawTextWithShadow(client.textRenderer, text, textX, textY, color);
+		context.drawText(client.textRenderer, text, textX, textY, color, false);
 		context.disableScissor();
 
 		if (this.isFocused() && this.isActive()) {
@@ -269,7 +269,7 @@ public class CustomTextField extends TextFieldWidget {
 		int xWidth = client.textRenderer.getWidth(xSymbol);
 		int xX = clearX + (CLEAR_BUTTON_SIZE - xWidth) / 2;
 		int xY = clearY + (CLEAR_BUTTON_SIZE - UITheme.Typography.TEXT_HEIGHT) / 2;
-		context.drawTextWithShadow(client.textRenderer, xSymbol, xX, xY, clearColor);
+		context.drawText(client.textRenderer, xSymbol, xX, xY, clearColor, false);
 	}
 
 	private void handleSpecialKeys(long windowHandle) {

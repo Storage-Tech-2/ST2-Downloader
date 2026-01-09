@@ -68,7 +68,7 @@ public class CustomButton extends ButtonWidget {
         int centerX = this.getX() + this.getWidth() / 2;
         int centerY = this.getY() + (this.getHeight() - UITheme.Typography.TEXT_HEIGHT) / 2 + yOffset;
 
-        context.drawCenteredTextWithShadow(tr, text, centerX, centerY, textColor);
+        RenderUtil.drawCenteredText(context, tr, text, centerX, centerY, textColor);
     }
 
     private String getDisplayText() {

@@ -94,7 +94,7 @@ public class TagFilterWidget {
 
                 int count = counts.getOrDefault(tag.toLowerCase(), 0);
                 String countText = String.valueOf(count);
-                context.drawTextWithShadow(font, countText, x + innerWidth - UITheme.Dimensions.PADDING - font.getWidth(countText) - scrollbarWidth, currentY + 4, UITheme.Colors.TEXT_SUBTITLE);
+                context.drawText(font, countText, x + innerWidth - UITheme.Dimensions.PADDING - font.getWidth(countText) - scrollbarWidth, currentY + 4, UITheme.Colors.TEXT_SUBTITLE, false);
             }
 
             hitboxes.add(new TagHitbox(tag, x + 1, currentY, x + innerWidth - 1, currentY + rowHeight));

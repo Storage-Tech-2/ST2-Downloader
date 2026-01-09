@@ -7,6 +7,10 @@ import net.minecraft.client.gui.DrawContext;
 public final class RenderUtil {
     private RenderUtil() {}
 
+    public static void drawCenteredText(DrawContext context, TextRenderer textRenderer, String text, int centerX, int y, int color) {
+		context.drawText(textRenderer, text, centerX - textRenderer.getWidth(text) / 2, y, color, false);
+	}
+
     public static void drawScaledString(DrawContext context, String text, int x, int y, int color, float scale) {
         if (text == null || text.isEmpty()) return;
         MinecraftClient client = MinecraftClient.getInstance();

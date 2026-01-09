@@ -165,9 +165,6 @@ public class LitematicDownloaderScreen extends Screen {
                 Text.of("X"),
                 button -> {
                     showDetailOverlay = false;
-                    if (detailPanel != null) {
-                        detailPanel.closeDropdown();
-                    }
                 }
             );
             detailCloseButton.setRenderAsXIcon(true);
@@ -300,6 +297,7 @@ public class LitematicDownloaderScreen extends Screen {
                             userMessage = "Search failed: Unknown error";
                         }
 
+                        System.err.println(userMessage);
                         System.err.println("Error loading posts: " + errorMessage);
                     });
                 }
@@ -412,12 +410,13 @@ public class LitematicDownloaderScreen extends Screen {
 
         if (noResultsFound) {
             String noResultsText = "No results found :(";
-            context.drawTextWithShadow(
+            context.drawText(
                 this.textRenderer,
                 noResultsText,
                 leftPanelWidth + PADDING + 20,
                 this.height / 2 + 10,
-                0xFFFFFFFF
+                0xFFFFFFFF,
+                false
             );
         }
 

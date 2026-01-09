@@ -48,7 +48,7 @@ public class ChannelDescriptionWidget {
         for (String word : words) {
             String test = line.length() > 0 ? line + " " + word : word;
             if (font.getWidth(test) > maxWidth && line.length() > 0) {
-                context.drawTextWithShadow(font, line.toString(), x, lineY, color);
+                context.drawText(font, line.toString(), x, lineY, color, false);
                 line = new StringBuilder(word);
                 lineY += font.fontHeight + 2;
             } else {
@@ -56,7 +56,7 @@ public class ChannelDescriptionWidget {
             }
         }
         if (!line.isEmpty()) {
-            context.drawTextWithShadow(font, line.toString(), x, lineY, color);
+            context.drawText(font, line.toString(), x, lineY, color, false);
         }
     }
 }

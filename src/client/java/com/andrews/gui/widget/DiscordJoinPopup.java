@@ -170,7 +170,8 @@ public class DiscordJoinPopup implements Drawable, Element {
 		context.fill(x, y, x + UITheme.Dimensions.BORDER_WIDTH, y + popupHeight, UITheme.Colors.BUTTON_BORDER);
 		context.fill(x + POPUP_WIDTH - UITheme.Dimensions.BORDER_WIDTH, y, x + POPUP_WIDTH, y + popupHeight, UITheme.Colors.BUTTON_BORDER);
 
-		context.drawCenteredTextWithShadow(
+		RenderUtil.drawCenteredText(
+				context,
 				client.textRenderer,
 				title,
 				x + POPUP_WIDTH / 2,
@@ -185,12 +186,13 @@ public class DiscordJoinPopup implements Drawable, Element {
 		int messageY = messageAreaY - (int) scrollOffset;
 		for (String line : wrappedMessage) {
 			if (messageY + UITheme.Typography.LINE_HEIGHT >= messageAreaY && messageY < messageAreaY + messageAreaHeight) {
-				context.drawTextWithShadow(
+				context.drawText(
 						client.textRenderer,
 						line,
 						x + UITheme.Dimensions.PADDING,
 						messageY,
-						UITheme.Colors.TEXT_TAG
+						UITheme.Colors.TEXT_TAG,
+						false
 				);
 			}
 			messageY += UITheme.Typography.LINE_HEIGHT;
