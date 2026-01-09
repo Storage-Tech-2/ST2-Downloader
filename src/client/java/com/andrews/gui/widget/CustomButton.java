@@ -25,7 +25,7 @@ public class CustomButton extends ButtonWidget {
         int textColor = this.active ? UITheme.Colors.TEXT_PRIMARY : UITheme.Colors.TEXT_DISABLED;
 
         String text = getDisplayText();
-        int yOffset = this.getMessage().getString().equals("⚙") ? 0 : 1;
+        int yOffset = 0;
         int centerX = this.getX() + this.getWidth() / 2;
         int centerY = this.getY() + (this.getHeight() - UITheme.Typography.TEXT_HEIGHT) / 2 + yOffset;
 
