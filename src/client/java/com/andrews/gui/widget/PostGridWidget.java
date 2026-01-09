@@ -51,6 +51,8 @@ public class PostGridWidget implements Renderable, GuiEventListener {
     private final Map<String, Identifier> imageTextures = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<?>> imageLoading = new ConcurrentHashMap<>();
     private final Map<String, int[]> imageSizes = new ConcurrentHashMap<>();
+    private final Set<String> noImagePosts = ConcurrentHashMap.newKeySet();
+    private final Set<String> failedImagePosts = ConcurrentHashMap.newKeySet();
     private boolean blocked = false;
     private int expectedTotalPosts = 0;
     private Runnable onEndReached;
@@ -94,6 +96,8 @@ public class PostGridWidget implements Renderable, GuiEventListener {
             imageTextures.clear();
             imageLoading.clear();
             imageSizes.clear();
+            noImagePosts.clear();
+            failedImagePosts.clear();
             return;
         }
 
@@ -107,6 +111,8 @@ public class PostGridWidget implements Renderable, GuiEventListener {
         imageTextures.keySet().retainAll(idsToKeep);
         imageSizes.keySet().retainAll(idsToKeep);
         imageLoading.keySet().removeIf(id -> !idsToKeep.contains(id));
+        noImagePosts.retainAll(idsToKeep);
+        failedImagePosts.retainAll(idsToKeep);
     }
 
     public void appendPosts(List<ArchivePostSummary> posts) {
@@ -237,14 +243,26 @@ public class PostGridWidget implements Renderable, GuiEventListener {
             );
         } else {
             RenderUtil.fillRect(context, imgX, imgY, imgX + imgW, imgY + IMAGE_HEIGHT, UITheme.Colors.CONTAINER_BG);
-            boolean loading = post != null && post.id() != null && imageLoading.containsKey(post.id());
-            String status = loading ? "Loading..." : "No image";
+            ensureImageLoading(post);
+            boolean hasId = post != null && post.id() != null;
+            boolean failed = hasId && failedImagePosts.contains(post.id());
+            boolean noImage = hasId && noImagePosts.contains(post.id());
+            boolean loading = hasId && imageLoading.containsKey(post.id());
+            String status;
+            if (failed) {
+                status = "Failed to load";
+            } else if (noImage) {
+                status = "No image";
+            } else if (loading) {
+                status = "Loading...";
+            } else {
+                status = "Loading...";
+            }
             int textWidth = (int) (client.font.width(status) * 0.8f);
             int textHeight = (int) (client.font.lineHeight * 0.8f);
             int textX = imgX + Math.max(0, (imgW - textWidth) / 2);
             int textY = imgY + Math.max(0, (IMAGE_HEIGHT - textHeight) / 2);
             RenderUtil.drawScaledString(context, status, textX, textY, UITheme.Colors.TEXT_SUBTITLE, 0.8f);
-            ensureImageLoading(post);
         }
 
         String title = post.title() != null ? post.title() : "Untitled";
@@ -380,17 +398,21 @@ public class PostGridWidget implements Renderable, GuiEventListener {
 
     private void ensureImageLoading(ArchivePostSummary post) {
         if (post == null || post.id() == null) return;
+        if (noImagePosts.contains(post.id())) return;
+        if (failedImagePosts.contains(post.id())) return;
         if (imageTextures.containsKey(post.id()) || imageLoading.containsKey(post.id())) return;
 
         CompletableFuture<Void> future = ArchiveNetworkManager.getPostDetails(server, post)
             .thenApply(detail -> {
                 if (detail == null || detail.images().isEmpty()) {
+                    noImagePosts.add(post.id());
                     return null;
                 }
                 return detail.images().get(0);
             })
             .thenCompose(url -> {
                 if (url == null || url.isEmpty()) {
+                    noImagePosts.add(post.id());
                     return CompletableFuture.completedFuture(null);
                 }
                 HttpRequest req = HttpRequest.newBuilder()
@@ -400,13 +422,22 @@ public class PostGridWidget implements Renderable, GuiEventListener {
                     .GET()
                     .build();
                 return httpClient.sendAsync(req, HttpResponse.BodyHandlers.ofByteArray())
-                    .thenApply(resp -> resp.statusCode() == 200 ? resp.body() : null);
+                    .thenApply(resp -> {
+                        if (resp.statusCode() != 200 || resp.body() == null || resp.body().length == 0) {
+                            throw new RuntimeException("Image request failed with status " + resp.statusCode());
+                        }
+                        return resp.body();
+                    });
             })
             .thenAccept(bytes -> {
-                if (bytes == null) return;
+                if (bytes == null) {
+                    failedImagePosts.add(post.id());
+                    return;
+                }
                 try {
                     NativeImage img = NativeImage.read(new ByteArrayInputStream(bytes));
                     if (img == null || img.getWidth() <= 0 || img.getHeight() <= 0) {
+                        failedImagePosts.add(post.id());
                         return;
                     }
                     String id = UUID.randomUUID().toString().replace("-", "");
@@ -419,10 +450,12 @@ public class PostGridWidget implements Renderable, GuiEventListener {
                         });
                     }
                 } catch (Exception e) {
+                    failedImagePosts.add(post.id());
                     System.err.println("Failed to load grid image: " + e.getMessage());
                 }
             })
             .exceptionally(ex -> {
+                failedImagePosts.add(post.id());
                 System.err.println("Image load failed for " + post.id() + ": " + ex.getMessage());
                 return null;
             })
