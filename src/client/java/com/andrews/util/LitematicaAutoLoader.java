@@ -1,10 +1,11 @@
 package com.andrews.util;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import net.minecraft.client.Minecraft;
-import net.minecraft.core.BlockPos;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.util.math.BlockPos;
 
 public final class LitematicaAutoLoader {
 	private LitematicaAutoLoader() {}
@@ -17,14 +18,15 @@ public final class LitematicaAutoLoader {
 			return false;
 		}
 
-		Minecraft client = Minecraft.getInstance();
-		if (client == null || client.player == null || client.level == null) {
+		MinecraftClient client = MinecraftClient.getInstance();
+		if (client == null || client.player == null || client.world == null) {
 			return false;
 		}
 
 		try {
+			File schematicFile = schematicPath.toFile();
 			fi.dy.masa.litematica.schematic.LitematicaSchematic schematic =
-				fi.dy.masa.litematica.data.SchematicHolder.getInstance().getOrLoad(schematicPath);
+				fi.dy.masa.litematica.data.SchematicHolder.getInstance().getOrLoad(schematicFile);
 			if (schematic == null) {
 				System.err.println("Failed to load schematic from " + schematicPath);
 				return false;
@@ -39,7 +41,7 @@ public final class LitematicaAutoLoader {
 				displayName = stripExtension(fallbackName);
 			}
 
-			BlockPos origin = client.player.blockPosition();
+			BlockPos origin = client.player.getBlockPos();
 			fi.dy.masa.litematica.schematic.placement.SchematicPlacement placement =
 				fi.dy.masa.litematica.schematic.placement.SchematicPlacement.createFor(schematic, origin, displayName, true, true);
 

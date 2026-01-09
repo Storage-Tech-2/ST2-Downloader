@@ -9,7 +9,6 @@ import com.andrews.models.ArchiveRecordSection;
 import com.andrews.network.ArchiveNetworkManager;
 import com.andrews.util.AttachmentSaver;
 import com.andrews.util.LitematicaAutoLoader;
-import com.mojang.blaze3d.platform.NativeImage;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -39,19 +38,19 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 
-import net.minecraft.SharedConstants;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Renderable;
-import net.minecraft.client.gui.components.events.GuiEventListener;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Drawable;
+import net.minecraft.client.gui.Element;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.texture.NativeImageBackedTexture;
+import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.Util;
 
 
-public class PostDetailPanel implements Renderable, GuiEventListener {
+public class PostDetailPanel implements Drawable, Element {
     
     
     
@@ -82,7 +81,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     private int originalImageHeight = 0;
     private final Map<String, int[]> imageDimensionsCache = new ConcurrentHashMap<>();
 
-    private final Minecraft client;
+    private final MinecraftClient client;
     private double scrollOffset = 0;
     private int contentHeight = 0;
 
@@ -108,7 +107,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         this.y = y;
         this.width = width;
         this.height = height;
-        this.client = Minecraft.getInstance();
+        this.client = MinecraftClient.getInstance();
         this.imageLoadingSpinner = new LoadingSpinner(0, 0);
         int scrollBarYOffset = 30;
         this.scrollBar = new ScrollBar(x + width - 8, y + scrollBarYOffset, height - scrollBarYOffset);
@@ -195,7 +194,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         int btnSpacing = compact ? 5 : 10;
 
         String indicator = String.format("%d / %d", currentImageIndex + 1, imageUrls.length);
-        int indicatorWidth = client.font.width(indicator);
+        int indicatorWidth = client.textRenderer.getWidth(indicator);
         int indicatorX = x + (width - indicatorWidth) / 2;
 
         int prevBtnX = indicatorX - btnWidth - btnSpacing;
@@ -203,7 +202,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         if (prevImageButton == null) {
             prevImageButton = new CustomButton(prevBtnX, imageNavY, btnWidth, btnHeight,
-                    Component.nullToEmpty("<"), btn -> previousImage());
+                    Text.of("<"), btn -> previousImage());
         } else {
             prevImageButton.setX(prevBtnX);
             prevImageButton.setY(imageNavY);
@@ -212,7 +211,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         if (nextImageButton == null) {
             nextImageButton = new CustomButton(nextBtnX, imageNavY, btnWidth, btnHeight,
-                    Component.nullToEmpty(">"), btn -> nextImage());
+                    Text.of(">"), btn -> nextImage());
         } else {
             nextImageButton.setX(nextBtnX);
             nextImageButton.setY(imageNavY);
@@ -401,13 +400,13 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 imageDimensionsCache.put(imageUrl, new int[]{imgWidth, imgHeight});
 
                 final String uniqueId = UUID.randomUUID().toString().replace("-", "");
-                final Identifier texId = Identifier.fromNamespaceAndPath("litematicdownloader", "textures/dynamic/" + uniqueId);
+                final Identifier texId = Identifier.of("litematicdownloader", "textures/dynamic/" + uniqueId);
 
                 if (client != null) {
                     client.execute(() -> {
-                        client.getTextureManager().register(
+                        client.getTextureManager().registerTexture(
                             texId,
-                            new DynamicTexture(() -> "archive_image", nativeImage)
+                            new NativeImageBackedTexture(nativeImage)
                         );
                         imageCache.put(imageUrl, texId);
                     });
@@ -701,7 +700,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 yPos,
                 width,
                 UITheme.Dimensions.BUTTON_HEIGHT,
-                Component.nullToEmpty("Open Discord Thread"),
+                Text.of("Open Discord Thread"),
                 button -> openDiscordThread()
             );
         }
@@ -719,7 +718,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 yPos,
                 width,
                 UITheme.Dimensions.BUTTON_HEIGHT,
-                Component.nullToEmpty("Open On Website"),
+                Text.of("Open On Website"),
                 button -> openWebsiteLink()
             );
         }
@@ -740,7 +739,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             return;
         }
         try {
-            Util.getPlatform().openUri(url);
+            Util.getOperatingSystem().open(url);
         } catch (Exception e) {
             System.err.println("Failed to open Discord thread: " + e.getMessage());
         }
@@ -753,14 +752,14 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         }
         String url = "http://storagetech2.org/?id=" + id;
         try {
-            Util.getPlatform().openUri(url);
+            Util.getOperatingSystem().open(url);
         } catch (Exception e) {
             System.err.println("Failed to open website: " + e.getMessage());
         }
     }
 
     @Override
-    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         int renderMouseX = mouseX;
         int renderMouseY = mouseY;
         if (schematicDropdown != null && schematicDropdown.isOpen() && schematicDropdown.isMouseOver(mouseX, mouseY)) {
@@ -774,8 +773,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         if (postInfo == null) {
             String text = "Select a schematic to view details";
-            int textWidth = client.font.width(text);
-            context.drawString(client.font, text,
+            int textWidth = client.textRenderer.getWidth(text);
+            context.drawTextWithShadow(client.textRenderer, text,
                 x + (width - textWidth) / 2, y + height / 2 - 4, UITheme.Colors.TEXT_SUBTITLE);
             return;
         }
@@ -808,8 +807,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             imageLoadingSpinner.render(context, mouseX, mouseY, delta);
         } else if (currentImageTexture != null) {
             context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight, UITheme.Colors.PANEL_BG);
-            context.blit(
-                RenderPipelines.GUI_TEXTURED,
+            context.drawTexture(
+                RenderLayer::getGuiTextured,
                 currentImageTexture,
                 imageX, imageY,
                 0, 0,
@@ -819,8 +818,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         } else {
             context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight, UITheme.Colors.CONTAINER_BG);
             String noImg = isCompactMode() ? "..." : "No image";
-            int tw = client.font.width(noImg);
-            context.drawString(client.font, noImg,
+            int tw = client.textRenderer.getWidth(noImg);
+            context.drawTextWithShadow(client.textRenderer, noImg,
                 containerX + (containerWidth - tw) / 2, containerY + containerHeight / 2 - 4, UITheme.Colors.TEXT_SUBTITLE);
         }
 
@@ -838,7 +837,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         if (imageUrls != null && imageUrls.length > 1) {
             String indicator = String.format("%d / %d", currentImageIndex + 1, imageUrls.length);
-            int indicatorWidth = client.font.width(indicator);
+            int indicatorWidth = client.textRenderer.getWidth(indicator);
             int indicatorX = x + (width - indicatorWidth) / 2;
             int btnY = currentY;
 
@@ -848,7 +847,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 prevImageButton.render(context, renderMouseX, renderMouseY, delta);
             }
 
-            context.drawString(client.font, indicator, indicatorX, btnY + 4, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawTextWithShadow(client.textRenderer, indicator, indicatorX, btnY + 4, UITheme.Colors.TEXT_SUBTITLE);
 
             if (nextImageButton != null) {
                 nextImageButton.render(context, renderMouseX, renderMouseY, delta);
@@ -865,7 +864,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         contentHeight += titleHeight + 8;
 
         String metaLine = buildMetaLine();
-        context.drawString(client.font, metaLine, x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+        context.drawTextWithShadow(client.textRenderer, metaLine, x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
         currentY += 16;
         contentHeight += 16;
 
@@ -879,20 +878,20 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         String[] tags = postInfo.tags();
         if (tags != null && tags.length > 0) {
-            context.drawString(client.font, "Tags:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawTextWithShadow(client.textRenderer, "Tags:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
             currentY += 12;
             contentHeight += 12;
 
             int tagX = x + UITheme.Dimensions.PADDING;
             for (String tag : orderTags(tags)) {
-                int tagWidth = client.font.width(tag) + 8;
+                int tagWidth = client.textRenderer.getWidth(tag) + 8;
                 if (tagX + tagWidth > x + width - UITheme.Dimensions.PADDING) {
                     tagX = x + UITheme.Dimensions.PADDING;
                     currentY += 14;
                     contentHeight += 14;
                 }
                 context.fill(tagX, currentY, tagX + tagWidth, currentY + 12, getTagColor(tag));
-                context.drawString(client.font, tag, tagX + 4, currentY + 2, UITheme.Colors.TEXT_TAG);
+                context.drawTextWithShadow(client.textRenderer, tag, tagX + 4, currentY + 2, UITheme.Colors.TEXT_TAG);
                 tagX += tagWidth + 4;
             }
             currentY += 16;
@@ -905,7 +904,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             for (ArchiveRecordSection section : postDetail.recordSections()) {
                 if (section == null) continue;
                 String header = section.title() != null ? section.title() : "Details";
-                context.drawString(client.font, header + ":", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+                context.drawTextWithShadow(client.textRenderer, header + ":", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
                 currentY += 12;
                 contentHeight += 12;
 
@@ -924,12 +923,12 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             }
         } else if (isLoadingDetails) {
             currentY += 8;
-            context.drawString(client.font, "Loading details...", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawTextWithShadow(client.textRenderer, "Loading details...", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
             contentHeight += 20;
         }
 
         if (availableFiles != null && !availableFiles.isEmpty()) {
-            context.drawString(client.font, "Attachments:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+            context.drawTextWithShadow(client.textRenderer, "Attachments:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
             currentY += 12;
             contentHeight += 12;
 
@@ -940,8 +939,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 int rowY = currentY;
                 String nameText = attachment.name() != null ? attachment.name() : "Attachment";
                 String meta = buildAttachmentMeta(attachment);
-                int nameHeight = (int) (client.font.lineHeight * 0.85f) + 6;
-                int metaHeight = (meta != null && !meta.isEmpty()) ? client.font.lineHeight + 2 : 0;
+                int nameHeight = (int) (client.textRenderer.fontHeight * 0.85f) + 6;
+                int metaHeight = (meta != null && !meta.isEmpty()) ? client.textRenderer.fontHeight + 2 : 0;
                 int descWidth = rowWidth - 12;
                 int descHeight = 0;
                 if (attachment.description() != null && !attachment.description().isEmpty()) {
@@ -959,7 +958,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 cursorY += nameHeight;
 
                 if (metaHeight > 0) {
-                    context.drawString(client.font, meta, rowX + 6, cursorY - 2, UITheme.Colors.TEXT_SUBTITLE);
+                    context.drawTextWithShadow(client.textRenderer, meta, rowX + 6, cursorY - 2, UITheme.Colors.TEXT_SUBTITLE);
                     cursorY += metaHeight;
                 }
 
@@ -1015,7 +1014,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             scrollBar.setScrollPercentage(scrollOffset / Math.max(1, contentHeight - height));
 
             if (client != null && client.getWindow() != null) {
-                long windowHandle = client.getWindow().handle();
+                long windowHandle = client.getWindow().getHandle();
                 if (scrollBar.updateAndRender(context, mouseX, mouseY, delta, windowHandle)) {
                     double maxScroll = Math.max(0, contentHeight - height);
                     scrollOffset = scrollBar.getScrollPercentage() * maxScroll;
@@ -1031,13 +1030,13 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         return imageViewer != null;
     }
 
-    public void renderImageViewer(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    public void renderImageViewer(DrawContext context, int mouseX, int mouseY, float delta) {
         if (imageViewer != null) {
             imageViewer.render(context, mouseX, mouseY, delta);
         }
     }
 
-    private void drawWrappedText(GuiGraphics context, String text, int textX, int textY, int maxWidth, int color) {
+    private void drawWrappedText(DrawContext context, String text, int textX, int textY, int maxWidth, int color) {
         if (text == null || text.isEmpty()) return;
 
         int lineY = textY;
@@ -1055,10 +1054,10 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
             for (String word : words) {
                 String testLine = !line.isEmpty() ? line + " " + word : word;
-                int testWidth = client.font.width(testLine);
+                int testWidth = client.textRenderer.getWidth(testLine);
 
                 if (testWidth > maxWidth && !line.isEmpty()) {
-                    context.drawString(client.font, line.toString(), textX, lineY, color);
+                    context.drawTextWithShadow(client.textRenderer, line.toString(), textX, lineY, color);
                     line = new StringBuilder(word);
                     lineY += 10;
                 } else {
@@ -1067,7 +1066,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             }
 
             if (!line.isEmpty()) {
-                context.drawString(client.font, line.toString(), textX, lineY, color);
+                context.drawTextWithShadow(client.textRenderer, line.toString(), textX, lineY, color);
                 lineY += 10;
             }
         }
@@ -1092,7 +1091,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
             for (String word : words) {
                 String testLine = !line.isEmpty() ? line + " " + word : word;
-                int testWidth = client.font.width(testLine);
+                int testWidth = client.textRenderer.getWidth(testLine);
 
                 if (testWidth > maxWidth && !line.isEmpty()) {
                     line = new StringBuilder(word);
@@ -1167,7 +1166,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             return;
         }
         try {
-            Util.getPlatform().openUri(url);
+            Util.getOperatingSystem().open(url);
         } catch (Exception e) {
             System.err.println("Failed to open attachment URL: " + e.getMessage());
         }
@@ -1336,8 +1335,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
     private void openImageViewer() {
         if (currentImageTexture != null && client != null && client.getWindow() != null) {
-            int screenWidth = client.getWindow().getGuiScaledWidth();
-            int screenHeight = client.getWindow().getGuiScaledHeight();
+            int screenWidth = client.getWindow().getScaledWidth();
+            int screenHeight = client.getWindow().getScaledHeight();
 
             int totalImages = (imageUrls != null) ? imageUrls.length : 1;
 
@@ -1432,10 +1431,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             }
         }
         return false;
-    }
-
-    public String getCurrentMCVersion() {
-        return SharedConstants.getCurrentVersion().name();
     }
 
     @Override

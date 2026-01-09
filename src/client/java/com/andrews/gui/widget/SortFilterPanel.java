@@ -1,24 +1,22 @@
 package com.andrews.gui.widget;
 
 import java.util.function.Consumer;
-
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Drawable;
+import net.minecraft.client.gui.Element;
+import net.minecraft.text.Text;
 import com.andrews.config.DownloadSettings;
 import com.andrews.gui.theme.UITheme;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Renderable;
-import net.minecraft.client.gui.components.events.GuiEventListener;
-import net.minecraft.network.chat.Component;
-
-public class SortFilterPanel implements Renderable, GuiEventListener {
+public class SortFilterPanel implements Drawable, Element {
 
     private int x;
     private int y;
     private int width;
     private int height;
 
-    private final Minecraft client;
+    private final MinecraftClient client;
     private double scrollOffset = 0;
     private int contentHeight = 0;
     private ScrollBar scrollBar;
@@ -38,12 +36,12 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
         this.y = y;
         this.width = width;
         this.height = height;
-        this.client = Minecraft.getInstance();
+        this.client = MinecraftClient.getInstance();
         this.scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.PADDING, y + 30, height - 60);
         loadSettings();
-        this.tagTextField = new CustomTextField(client, x + UITheme.Dimensions.PADDING, y + 100, width - UITheme.Dimensions.PADDING * 2 - 10, 18, Component.empty());
-        this.tagTextField.setHint(Component.nullToEmpty("Filter tags..."));
-        this.tagTextField.setValue(tagFilter);
+        this.tagTextField = new CustomTextField(client, x + UITheme.Dimensions.PADDING, y + 100, width - UITheme.Dimensions.PADDING * 2 - 10, 18, Text.empty());
+        this.tagTextField.setPlaceholder(Text.of("Filter tags..."));
+        this.tagTextField.setText(tagFilter);
         initButtons();
     }
 
@@ -69,7 +67,7 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
                 y + height - UITheme.Dimensions.BUTTON_HEIGHT - UITheme.Dimensions.PADDING,
                 buttonWidth,
                 UITheme.Dimensions.BUTTON_HEIGHT,
-                Component.nullToEmpty(width < 150 ? "✓" : "Apply"),
+                Text.of(width < 150 ? "✓" : "Apply"),
                 button -> applySettings()
         );
 
@@ -78,14 +76,14 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
                 y + height - UITheme.Dimensions.BUTTON_HEIGHT - UITheme.Dimensions.PADDING,
                 buttonWidth,
                 UITheme.Dimensions.BUTTON_HEIGHT,
-                Component.nullToEmpty(width < 150 ? "↺" : "Reset"),
+                Text.of(width < 150 ? "↺" : "Reset"),
                 button -> resetSettings()
         );
     }
 
     private void applySettings() {
         if (tagTextField != null) {
-            tagFilter = tagTextField.getValue();
+            tagFilter = tagTextField.getText();
         }
         saveSettings();
         notifySettingsChanged();
@@ -126,7 +124,7 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
         }
     }
 
-    private void drawButtonBorder(GuiGraphics context, int x, int y, int width, int height) {
+    private void drawButtonBorder(DrawContext context, int x, int y, int width, int height) {
         int borderWidth = UITheme.Dimensions.BORDER_WIDTH;
         int borderColor = UITheme.Colors.BUTTON_BORDER;
         context.fill(x, y, x + width, y + borderWidth, borderColor);
@@ -135,18 +133,18 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
         context.fill(x + width - borderWidth, y, x + width, y + height, borderColor);
     }
 
-    private void drawCenteredButtonText(GuiGraphics context, String text, int x, int y, int width, int height) {
-        int textWidth = client.font.width(text);
-        context.drawString(client.font, text, x + (width - textWidth) / 2, y + 5, UITheme.Colors.TEXT_PRIMARY);
+    private void drawCenteredButtonText(DrawContext context, String text, int x, int y, int width, int height) {
+        int textWidth = client.textRenderer.getWidth(text);
+        context.drawTextWithShadow(client.textRenderer, text, x + (width - textWidth) / 2, y + 5, UITheme.Colors.TEXT_PRIMARY);
     }
 
     @Override
-    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         context.fill(x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
         context.fill(x, y, x + 1, y + height, UITheme.Colors.BUTTON_BORDER);
         boolean isCompact = width < 180;
         String title = isCompact ? "Filters" : "Sort & Filter";
-        context.drawString(client.font, title, x + UITheme.Dimensions.PADDING, y + UITheme.Dimensions.PADDING, UITheme.Colors.TEXT_PRIMARY);
+        context.drawTextWithShadow(client.textRenderer, title, x + UITheme.Dimensions.PADDING, y + UITheme.Dimensions.PADDING, UITheme.Colors.TEXT_PRIMARY);
         int contentStartY = y + 30;
         context.enableScissor(x + 1, contentStartY, x + width - UITheme.Dimensions.SCROLLBAR_WIDTH, y + height - 40);
 
@@ -163,8 +161,8 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
         renderBottomButtons(context, mouseX, mouseY, delta);
     }
 
-    private int renderSortSection(GuiGraphics context, int mouseX, int mouseY, int currentY, boolean isCompact) {
-        context.drawString(client.font, "Sort By:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+    private int renderSortSection(DrawContext context, int mouseX, int mouseY, int currentY, boolean isCompact) {
+        context.drawTextWithShadow(client.textRenderer, "Sort By:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
         currentY += 14;
         contentHeight += 14;
         int btnWidth = isCompact ? (width - UITheme.Dimensions.PADDING * 2 - 10) : (width - UITheme.Dimensions.PADDING * 2 - 10) / 2;
@@ -202,8 +200,8 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
         return currentY;
     }
 
-    private int renderPaginationSection(GuiGraphics context, int mouseX, int mouseY, int currentY, boolean isCompact) {
-        context.drawString(client.font, "Items per page:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+    private int renderPaginationSection(DrawContext context, int mouseX, int mouseY, int currentY, boolean isCompact) {
+        context.drawTextWithShadow(client.textRenderer, "Items per page:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
         currentY += 14;
         contentHeight += 14;
         int btnWidth = isCompact ? (width - UITheme.Dimensions.PADDING * 2 - 10) / 2 : (width - UITheme.Dimensions.PADDING * 2 - 10) / 4;
@@ -230,8 +228,8 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
         return currentY;
     }
 
-    private int renderTagSection(GuiGraphics context, int mouseX, int mouseY, int currentY) {
-        context.drawString(client.font, "Tag Filter:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
+    private int renderTagSection(DrawContext context, int mouseX, int mouseY, int currentY) {
+        context.drawTextWithShadow(client.textRenderer, "Tag Filter:", x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
         currentY += 14;
         contentHeight += 14;
         if (tagTextField != null) {
@@ -247,7 +245,7 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
         return currentY;
     }
 
-    private void renderBottomButtons(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    private void renderBottomButtons(DrawContext context, int mouseX, int mouseY, float delta) {
         int buttonY = y + height - 30;
         int buttonWidth = (width - UITheme.Dimensions.PADDING * 3) / 2;
 
@@ -275,7 +273,7 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
             return false;
         }
         if (applyButton != null && isOverButton(applyButton, mouseX, mouseY)) {
-            tagFilter = tagTextField != null ? tagTextField.getValue() : "";
+            tagFilter = tagTextField != null ? tagTextField.getText() : "";
             saveSettings();
             notifySettingsChanged();
             return true;
@@ -360,7 +358,7 @@ public class SortFilterPanel implements Renderable, GuiEventListener {
         itemsPerPage = 20;
         tagFilter = "";
         if (tagTextField != null) {
-            tagTextField.setValue("");
+            tagTextField.setText("");
         }
         scrollOffset = 0;
         saveSettings();

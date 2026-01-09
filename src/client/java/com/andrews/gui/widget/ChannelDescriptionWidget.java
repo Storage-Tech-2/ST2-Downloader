@@ -2,9 +2,8 @@ package com.andrews.gui.widget;
 
 import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchiveChannel;
-
-import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.DrawContext;
 
 public class ChannelDescriptionWidget {
     private int x;
@@ -24,7 +23,7 @@ public class ChannelDescriptionWidget {
         this.channel = channel;
     }
 
-    public void render(GuiGraphics context, Font font) {
+    public void render(DrawContext context, TextRenderer font) {
         context.fill(x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
         context.fill(x, y, x + width, y + UITheme.Dimensions.BORDER_WIDTH, UITheme.Colors.BUTTON_BORDER);
         context.fill(x, y, x + UITheme.Dimensions.BORDER_WIDTH, y + height, UITheme.Colors.BUTTON_BORDER);
@@ -41,23 +40,23 @@ public class ChannelDescriptionWidget {
         drawWrappedText(context, font, desc, textX, textY, maxWidth, UITheme.Colors.TEXT_PRIMARY);
     }
 
-    private void drawWrappedText(GuiGraphics context, Font font, String text, int x, int y, int maxWidth, int color) {
+    private void drawWrappedText(DrawContext context, TextRenderer font, String text, int x, int y, int maxWidth, int color) {
         if (text == null || text.isEmpty()) return;
         String[] words = text.split(" ");
         StringBuilder line = new StringBuilder();
         int lineY = y;
         for (String word : words) {
             String test = line.length() > 0 ? line + " " + word : word;
-            if (font.width(test) > maxWidth && line.length() > 0) {
-                context.drawString(font, line.toString(), x, lineY, color);
+            if (font.getWidth(test) > maxWidth && line.length() > 0) {
+                context.drawTextWithShadow(font, line.toString(), x, lineY, color);
                 line = new StringBuilder(word);
-                lineY += font.lineHeight + 2;
+                lineY += font.fontHeight + 2;
             } else {
                 line = new StringBuilder(test);
             }
         }
         if (!line.isEmpty()) {
-            context.drawString(font, line.toString(), x, lineY, color);
+            context.drawTextWithShadow(font, line.toString(), x, lineY, color);
         }
     }
 }

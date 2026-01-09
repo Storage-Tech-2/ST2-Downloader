@@ -3,16 +3,14 @@ package com.andrews.gui.widget;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Drawable;
+import net.minecraft.client.gui.Element;
 import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchivePostSummary;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Renderable;
-import net.minecraft.client.gui.components.events.GuiEventListener;
-
-public class PostEntryWidget implements Renderable, GuiEventListener {
+public class PostEntryWidget implements Drawable, Element {
     private static final int MIN_ENTRY_HEIGHT = 70;
     private static final int LINE_HEIGHT = UITheme.Typography.LINE_HEIGHT;
     private static final int CONTENT_SPACING = 5;
@@ -28,7 +26,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
     private int x;
     private int y;
     private int width;
-    private final Minecraft client;
+    private final MinecraftClient client;
     private final Runnable onClick;
     private boolean isHovered = false;
     private boolean isPressed = false;
@@ -39,7 +37,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
         this.x = x;
         this.y = y;
         this.width = width;
-        this.client = Minecraft.getInstance();
+        this.client = MinecraftClient.getInstance();
         this.onClick = onClick;
         calculateHeight();
     }
@@ -85,7 +83,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
 
         for (String word : words) {
             String testLine = !line.isEmpty() ? line + " " + word : word;
-            int testWidth = client.font.width(testLine);
+            int testWidth = client.textRenderer.getWidth(testLine);
 
             if (testWidth > maxWidth && !line.isEmpty()) {
                 line = new StringBuilder(word);
@@ -98,7 +96,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
         return lines * LINE_HEIGHT;
     }
 
-    private void drawWrappedText(GuiGraphics context, String text, int textX, int textY, int maxWidth, int color) {
+    private void drawWrappedText(DrawContext context, String text, int textX, int textY, int maxWidth, int color) {
         if (text == null || text.isEmpty()) return;
 
         String[] words = text.split(" ");
@@ -107,10 +105,10 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
 
         for (String word : words) {
             String testLine = !line.isEmpty() ? line + " " + word : word;
-            int testWidth = client.font.width(testLine);
+            int testWidth = client.textRenderer.getWidth(testLine);
 
             if (testWidth > maxWidth && !line.isEmpty()) {
-                context.drawString(client.font, line.toString(), textX, lineY, color);
+                context.drawTextWithShadow(client.textRenderer, line.toString(), textX, lineY, color);
                 line = new StringBuilder(word);
                 lineY += LINE_HEIGHT;
             } else {
@@ -119,7 +117,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
         }
 
         if (!line.isEmpty()) {
-            context.drawString(client.font, line.toString(), textX, lineY, color);
+            context.drawTextWithShadow(client.textRenderer, line.toString(), textX, lineY, color);
         }
     }
 
@@ -128,7 +126,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
     }
 
     @Override
-    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         updateHoverState(mouseX, mouseY);
 
         int bgColor = getBackgroundColor();
@@ -152,11 +150,11 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
         return ENTRY_BG_COLOR;
     }
 
-    private void drawBackground(GuiGraphics context, int bgColor) {
+    private void drawBackground(DrawContext context, int bgColor) {
         context.fill(x, y, x + width, y + calculatedHeight, bgColor);
     }
 
-    private void drawBorder(GuiGraphics context) {
+    private void drawBorder(DrawContext context) {
         int borderWidth = UITheme.Dimensions.BORDER_WIDTH;
         context.fill(x, y, x + width, y + borderWidth, BORDER_COLOR);
         context.fill(x, y + calculatedHeight - borderWidth, x + width, y + calculatedHeight, BORDER_COLOR);
@@ -164,7 +162,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
         context.fill(x + width - borderWidth, y, x + width, y + calculatedHeight, BORDER_COLOR);
     }
 
-    private void renderContent(GuiGraphics context) {
+    private void renderContent(DrawContext context) {
         int currentY = y + UITheme.Dimensions.PADDING;
         int contentWidth = width - UITheme.Dimensions.PADDING * 2;
 
@@ -173,7 +171,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
         renderTags(context, currentY, contentWidth);
     }
 
-    private int renderTitle(GuiGraphics context, int currentY, int contentWidth) {
+    private int renderTitle(DrawContext context, int currentY, int contentWidth) {
         String title = post.title();
         if (title != null && !title.isEmpty()) {
             drawWrappedText(context, title, x + UITheme.Dimensions.PADDING, currentY, contentWidth, TEXT_COLOR);
@@ -182,7 +180,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
         return currentY;
     }
 
-    private int renderInfo(GuiGraphics context, int currentY) {
+    private int renderInfo(DrawContext context, int currentY) {
         String channelLabel = post.channelCode() != null && !post.channelCode().isEmpty()
             ? post.channelCode()
             : (post.channelName() != null ? post.channelName() : "Archive");
@@ -195,12 +193,12 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
             ? String.format("%s | %s", channelLabel, updatedLabel)
             : String.format("%s (%s) | %s", channelLabel, codeLabel, updatedLabel);
 
-        context.drawString(client.font, info,
+        context.drawTextWithShadow(client.textRenderer, info,
             x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
         return currentY + LINE_HEIGHT + CONTENT_SPACING;
     }
 
-    private void renderTags(GuiGraphics context, int currentY, int contentWidth) {
+    private void renderTags(DrawContext context, int currentY, int contentWidth) {
         if (post.tags() != null && post.tags().length > 0) {
             StringBuilder tags = new StringBuilder();
             for (int i = 0; i < post.tags().length; i++) {

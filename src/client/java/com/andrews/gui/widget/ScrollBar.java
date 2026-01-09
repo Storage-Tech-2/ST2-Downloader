@@ -1,12 +1,12 @@
 package com.andrews.gui.widget;
 
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Renderable;
 import org.lwjgl.glfw.GLFW;
 
 import com.andrews.gui.theme.UITheme;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Drawable;
 
-public class ScrollBar implements Renderable {
+public class ScrollBar implements Drawable {
     private static final int MIN_HANDLE_HEIGHT = 20;
 
     private final int x;
@@ -72,7 +72,7 @@ public class ScrollBar implements Renderable {
                mouseY >= y && mouseY < y + height;
     }
 
-    public boolean updateAndRender(GuiGraphics context, int mouseX, int mouseY, float delta, long windowHandle) {
+    public boolean updateAndRender(DrawContext context, int mouseX, int mouseY, float delta, long windowHandle) {
         if (!isVisible()) return false;
 
         boolean isMouseDown = GLFW.glfwGetMouseButton(windowHandle, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
@@ -123,7 +123,7 @@ public class ScrollBar implements Renderable {
         return scrollChanged;
     }
 
-    private void drawScrollBar(GuiGraphics context, double handleHeight) {
+    private void drawScrollBar(DrawContext context, double handleHeight) {
         context.fill(x, y, x + UITheme.Dimensions.SCROLLBAR_WIDTH, y + height, UITheme.Colors.SCROLLBAR_BG);
 
         double handleY = getHandleY();
@@ -132,7 +132,7 @@ public class ScrollBar implements Renderable {
     }
 
     @Override
-    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         if (!isVisible()) return;
 
         isHovered = isMouseOverHandle(mouseX, mouseY);

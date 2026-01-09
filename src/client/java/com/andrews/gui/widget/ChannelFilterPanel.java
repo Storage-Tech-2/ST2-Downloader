@@ -2,24 +2,21 @@ package com.andrews.gui.widget;
 
 import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchiveChannel;
-import com.mojang.blaze3d.platform.cursor.CursorTypes;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Drawable;
+import net.minecraft.client.gui.Element;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Renderable;
-import net.minecraft.client.gui.components.events.GuiEventListener;
-
-public class ChannelFilterPanel implements Renderable, GuiEventListener {
+public class ChannelFilterPanel implements Drawable, Element {
     private static final int HEADER_HEIGHT = 28;
     private static final int ITEM_HEIGHT = 22;
 
-    private final Minecraft client;
+    private final MinecraftClient client;
     private int x;
     private int y;
     private int width;
@@ -35,10 +32,8 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
     private final Map<String, List<ArchiveChannel>> channelsByCategory = new HashMap<>();
     private final Map<String, Integer> channelCounts = new HashMap<>();
 
-    private ArchiveChannel hovered = null;
-
     public ChannelFilterPanel(int x, int y, int width, int height) {
-        this.client = Minecraft.getInstance();
+        this.client = MinecraftClient.getInstance();
         this.x = x;
         this.y = y;
         this.width = width;
@@ -104,7 +99,7 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
     }
 
     @Override
-    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         context.fill(x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
 
         context.fill(x, y, x + width, y + UITheme.Dimensions.BORDER_WIDTH, UITheme.Colors.BUTTON_BORDER);
@@ -117,7 +112,7 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
         RenderUtil.drawScaledString(context, "Channels", x + UITheme.Dimensions.PADDING, y + UITheme.Dimensions.PADDING + 2, UITheme.Colors.TEXT_PRIMARY, scale);
 
         String reset = "Reset";
-        int resetWidth = (int) (client.font.width(reset) * scale);
+        int resetWidth = (int) (client.textRenderer.getWidth(reset) * scale);
         int resetX = x + width - resetWidth - UITheme.Dimensions.PADDING;
         int resetY = y + UITheme.Dimensions.PADDING + 2;
         RenderUtil.drawScaledString(context, reset, resetX, resetY, UITheme.Colors.TEXT_PRIMARY, scale);
@@ -145,9 +140,9 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
                 String path = channel.path();
                 int count = channelCounts.getOrDefault(path, channel.entryCount());
                 String countText = String.valueOf(count);
-                int countWidth = client.font.width(countText);
+                int countWidth = client.textRenderer.getWidth(countText);
                 float textScale = 0.9f;
-                int codeWidth = client.font.width(channel.code()) + 4;
+                int codeWidth = client.textRenderer.getWidth(channel.code()) + 4;
 
                 RenderUtil.drawScaledString(context, channel.code(), x + UITheme.Dimensions.PADDING, currentY + 6, UITheme.Colors.TEXT_MUTED, textScale);
                 RenderUtil.drawScaledString(context, channel.name(), x + UITheme.Dimensions.PADDING + codeWidth, currentY + 6, UITheme.Colors.TEXT_PRIMARY, textScale);
@@ -171,7 +166,7 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
         updateHover(mouseX, mouseY);
 
         if (client != null && client.getWindow() != null) {
-            boolean changed = scrollBar.updateAndRender(context, mouseX, mouseY, delta, client.getWindow().handle());
+            boolean changed = scrollBar.updateAndRender(context, mouseX, mouseY, delta, client.getWindow().getHandle());
             if (changed || scrollBar.isDragging()) {
                 scrollOffset = scrollBar.getScrollPercentage() * scrollable;
             }
@@ -192,7 +187,7 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
         }
 
         String reset = "Reset";
-        int resetWidth = client.font.width(reset);
+        int resetWidth = client.textRenderer.getWidth(reset);
         int resetX = x + width - resetWidth - UITheme.Dimensions.PADDING;
         int resetY = y + UITheme.Dimensions.PADDING + 2;
         if (mouseX >= resetX && mouseX <= resetX + resetWidth && mouseY >= resetY && mouseY <= resetY + UITheme.Typography.TEXT_HEIGHT) {
@@ -295,14 +290,10 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
             if (hovered != null) break;
             currentY += 4;
         }
-        this.hovered = hovered;
         onHoverChanged.accept(hovered);
-        
     }
 
-    private void handleCursor(GuiGraphics guiGraphics) {
-		if (this.hovered != null) {
-			guiGraphics.requestCursor(CursorTypes.POINTING_HAND);
-		}
+    private void handleCursor(DrawContext guiGraphics) {
+	
 	}
 }
