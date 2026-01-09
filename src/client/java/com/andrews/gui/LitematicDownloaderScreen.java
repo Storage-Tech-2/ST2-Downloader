@@ -243,6 +243,7 @@ public class LitematicDownloaderScreen extends Screen {
         currentTagFilter = "";
         currentPage = 1;
         currentPosts.clear();
+        noResultsFound = false;
 
         if (detailPanel != null) {
             detailPanel.clear();
@@ -260,10 +261,6 @@ public class LitematicDownloaderScreen extends Screen {
             isLoadingMore = true;
         } else {
             isLoading = true;
-            currentPosts.clear();
-            if (postGrid != null) {
-                postGrid.resetPosts(new ArrayList<>());
-            }
         }
 
         List<String> channelFilter = selectedChannelPath != null ? List.of(selectedChannelPath) : null;
