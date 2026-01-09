@@ -3,16 +3,16 @@ package com.andrews.gui.widget;
 import com.andrews.gui.theme.UITheme;
 import com.andrews.util.RenderUtil;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.widget.ButtonWidget;
 
-public class CustomButton extends Button {
+public class CustomButton extends ButtonWidget {
     private boolean renderAsXIcon = false;
 
-    public CustomButton(int x, int y, int width, int height, net.minecraft.network.chat.Component message, OnPress onPress) {
-        super(x, y, width, height, message, onPress, DEFAULT_NARRATION);
+    public CustomButton(int x, int y, int width, int height, net.minecraft.text.Text message, PressAction onPress) {
+        super(x, y, width, height, message, onPress, DEFAULT_NARRATION_SUPPLIER);
     }
 
     public void setRenderAsXIcon(boolean renderAsXIcon) {
@@ -20,45 +20,8 @@ public class CustomButton extends Button {
     }
 
     @Override
-    protected void renderContents(GuiGraphics context, int mouseX, int mouseY, float delta) {
-        int bgColor = getBackgroundColor(mouseX, mouseY);
-        drawBackground(context, bgColor);
-        drawBorder(context);
-        drawText(context);
-    }
-
-    private int getBackgroundColor(int mouseX, int mouseY) {
-        if (!this.active) {
-            return UITheme.Colors.BUTTON_BG_DISABLED;
-        }
-
-        boolean isHovered = mouseX >= this.getX() && mouseY >= this.getY() &&
-                           mouseX < this.getX() + this.getWidth() && mouseY < this.getY() + this.getHeight();
-
-        return isHovered ? UITheme.Colors.BUTTON_BG_HOVER : UITheme.Colors.BUTTON_BG;
-    }
-
-    private void drawBackground(GuiGraphics context, int color) {
-        RenderUtil.fillRect(context, this.getX(), this.getY(), this.getX() + this.getWidth(),
-                    this.getY() + this.getHeight(), color);
-    }
-
-    private void drawBorder(GuiGraphics context) {
-        int x1 = this.getX();
-        int y1 = this.getY();
-        int x2 = x1 + this.getWidth();
-        int y2 = y1 + this.getHeight();
-        int borderColor = UITheme.Colors.BUTTON_BORDER;
-        int borderWidth = UITheme.Dimensions.BORDER_WIDTH;
-
-        RenderUtil.fillRect(context, x1, y1, x2, y1 + borderWidth, borderColor);
-        RenderUtil.fillRect(context, x1, y2 - borderWidth, x2, y2, borderColor);
-        RenderUtil.fillRect(context, x1, y1, x1 + borderWidth, y2, borderColor);
-        RenderUtil.fillRect(context, x2 - borderWidth, y1, x2, y2, borderColor);
-    }
-
-    private void drawText(GuiGraphics context) {
-        Font tr = Minecraft.getInstance().font;
+    public void drawMessage(DrawContext context, TextRenderer textRenderer, int color) {
+        TextRenderer tr = MinecraftClient.getInstance().textRenderer;
         int textColor = this.active ? UITheme.Colors.TEXT_PRIMARY : UITheme.Colors.TEXT_DISABLED;
 
         String text = getDisplayText();

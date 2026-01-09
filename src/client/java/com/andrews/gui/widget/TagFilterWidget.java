@@ -1,14 +1,12 @@
 package com.andrews.gui.widget;
 
-import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.DrawContext;
 import com.andrews.gui.theme.UITheme;
 import com.andrews.util.RenderUtil;
 
@@ -56,7 +54,7 @@ public class TagFilterWidget {
         this.onToggle = callback;
     }
 
-    public void render(GuiGraphics context, Font font, int mouseX, int mouseY, float delta, long windowHandle) {
+    public void render(DrawContext context, TextRenderer font, int mouseX, int mouseY, float delta, long windowHandle) {
         if (scrollBar == null) {
             scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.BORDER_WIDTH,
                     y + rowHeight, height - rowHeight - UITheme.Dimensions.PADDING);
@@ -102,7 +100,7 @@ public class TagFilterWidget {
 
                 int swatchColor = getTagSwatchColor(tag);
                 int textColor = UITheme.Colors.TEXT_PRIMARY;
-                int textHeight = (int) (font.lineHeight * 0.85f);
+                int textHeight = (int) (font.fontHeight * 0.85f);
                 int centerOffset = (rowHeight - textHeight) / 2;
                 RenderUtil.fillRect(context, x + UITheme.Dimensions.PADDING, currentY + 4, x + UITheme.Dimensions.PADDING + 6,
                         currentY + rowHeight - 4, swatchColor);
@@ -112,7 +110,7 @@ public class TagFilterWidget {
                 int count = counts.getOrDefault(tag.toLowerCase(), 0);
                 String countText = String.valueOf(count);
                 RenderUtil.drawString(context, font, countText,
-                        x + innerWidth - UITheme.Dimensions.PADDING - font.width(countText) - scrollbarWidth,
+                        x + innerWidth - UITheme.Dimensions.PADDING - font.getWidth(countText) - scrollbarWidth,
                         currentY + 4, UITheme.Colors.TEXT_SUBTITLE);
             }
 

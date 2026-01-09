@@ -2,7 +2,6 @@ package com.andrews.gui.widget;
 
 import com.andrews.models.ArchiveImageInfo;
 import com.andrews.network.ArchiveNetworkManager;
-import com.mojang.blaze3d.platform.NativeImage;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -24,17 +23,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.Identifier;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.texture.NativeImageBackedTexture;
+import net.minecraft.util.Identifier;
 
 /**
  * Handles image state, loading, and viewer interactions for the post detail view.
  */
 public class PostImageController {
 
-    private final Minecraft client;
+    private final MinecraftClient client;
     private final LoadingSpinner loadingSpinner;
 
     private List<ArchiveImageInfo> imageInfos = new ArrayList<>();
@@ -53,7 +53,7 @@ public class PostImageController {
 
     private ImageViewerWidget imageViewer;
 
-    public PostImageController(Minecraft client) {
+    public PostImageController(MinecraftClient client) {
         this.client = client;
         this.loadingSpinner = new LoadingSpinner(0, 0);
     }
@@ -190,7 +190,7 @@ public class PostImageController {
         imageViewer = null;
     }
 
-    public void renderImageViewer(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    public void renderImageViewer(DrawContext context, int mouseX, int mouseY, float delta) {
         if (imageViewer != null) {
             imageViewer.render(context, mouseX, mouseY, delta);
         }
@@ -231,7 +231,7 @@ public class PostImageController {
             return;
         }
         closeImageViewer();
-        openImageViewer(client.getWindow().getGuiScaledWidth(), client.getWindow().getGuiScaledHeight());
+        openImageViewer(client.getWindow().getScaledWidth(), client.getWindow().getScaledHeight());
     }
 
     private void loadImage(String imageUrl) {
@@ -353,14 +353,14 @@ public class PostImageController {
                     imageDimensionsCache.put(imageUrl, new int[] { imgWidth, imgHeight });
 
                     final String uniqueId = UUID.randomUUID().toString().replace("-", "");
-                    final Identifier texId = Identifier.fromNamespaceAndPath("litematicdownloader",
+                    final Identifier texId = Identifier.of("litematicdownloader",
                             "textures/dynamic/" + uniqueId);
 
                     if (client != null) {
                         client.execute(() -> {
-                            client.getTextureManager().register(
+                            client.getTextureManager().registerTexture(
                                     texId,
-                                    new DynamicTexture(() -> "archive_image", nativeImage));
+                                    new NativeImageBackedTexture(nativeImage));
                             imageCache.put(imageUrl, texId);
                         });
                     }
