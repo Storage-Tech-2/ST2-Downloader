@@ -4,6 +4,7 @@ import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchivePostSummary;
 import com.andrews.network.ArchiveNetworkManager;
 import com.andrews.util.RenderUtil;
+import com.andrews.util.TagUtil;
 import com.mojang.blaze3d.platform.NativeImage;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
@@ -12,13 +13,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
-import java.util.Set;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -242,7 +241,7 @@ public class PostGridWidget implements Renderable, GuiEventListener {
             int tagY = textY;
             int rows = 1;
             int maxRows = 2;
-            for (String tag : orderTags(tags)) {
+            for (String tag : TagUtil.orderTags(tags)) {
                 if (tag == null) continue;
                 int tw = (int) (client.font.width(tag) * tagScale) + 8;
                 if (tagX + tw > cardX + imgPadding + maxWidth) {
@@ -253,7 +252,7 @@ public class PostGridWidget implements Renderable, GuiEventListener {
                 tagX = cardX + imgPadding;
                 tagY += tagHeight + 2;
             }
-            RenderUtil.fillRect(context, tagX, tagY, tagX + tw, tagY + tagHeight, getTagColor(tag));
+            RenderUtil.fillRect(context, tagX, tagY, tagX + tw, tagY + tagHeight, TagUtil.getTagColor(tag));
             RenderUtil.drawScaledString(context, tag, tagX + 4, tagY + 2, UITheme.Colors.TEXT_TAG, tagScale);
             tagX += tw + 4;
         }
@@ -319,39 +318,6 @@ public class PostGridWidget implements Renderable, GuiEventListener {
         if (hr < 48) return hr + "h ago";
         if (day < 365) return day + "d ago";
         return yr + "y ago";
-    }
-
-    private int getTagColor(String tag) {
-        if (tag == null) return UITheme.Colors.BUTTON_BG;
-        String lower = tag.toLowerCase();
-        if (lower.contains("untested")) return 0xFF8C6E00;
-        if (lower.contains("broken")) return 0xFF8B1A1A;
-        if (lower.contains("tested") || lower.contains("functional")) return 0xFF1E7F1E;
-        if (lower.contains("recommend")) return 0xFFB8860B;
-        return UITheme.Colors.BUTTON_BG;
-    }
-
-    private List<String> orderTags(String[] tags) {
-        List<String> list = new ArrayList<>();
-        if (tags == null) return list;
-        List<String> specials = List.of("untested", "broken", "tested & functional", "recommended");
-        Set<String> seen = new HashSet<>();
-        for (String s : specials) {
-            for (String tag : tags) {
-                if (tag == null) continue;
-                if (tag.toLowerCase().equals(s) && seen.add(tag.toLowerCase())) {
-                    list.add(tag);
-                }
-            }
-        }
-        for (String tag : tags) {
-            if (tag == null) continue;
-            String key = tag.toLowerCase();
-            if (seen.add(key)) {
-                list.add(tag);
-            }
-        }
-        return list;
     }
 
     private Layout computeLayout() {

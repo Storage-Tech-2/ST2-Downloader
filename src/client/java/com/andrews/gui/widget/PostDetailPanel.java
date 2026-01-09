@@ -2,58 +2,30 @@ package com.andrews.gui.widget;
 
 import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchiveAttachment;
-import com.andrews.models.ArchiveImageInfo;
 import com.andrews.models.ArchivePostDetail;
 import com.andrews.models.ArchivePostSummary;
 import com.andrews.models.ArchiveRecordSection;
 import com.andrews.network.ArchiveNetworkManager;
-import com.andrews.util.AttachmentSaver;
-import com.andrews.util.LitematicaAutoLoader;
+import com.andrews.util.AttachmentManager;
 import com.andrews.util.RenderUtil;
-import com.mojang.blaze3d.platform.NativeImage;
-import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.file.Path;
-import java.time.Duration;
+import com.andrews.util.TagUtil;
+
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Locale;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
-import javax.imageio.stream.ImageInputStream;
-
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
 
 public class PostDetailPanel implements Renderable, GuiEventListener {
-
-    private static final int TAG_BG_COLOR = UITheme.Colors.BUTTON_BG;
-
     private static final int MAX_IMAGE_SIZE = 120;
 
     private int x;
@@ -63,26 +35,14 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
     private ArchivePostSummary postInfo;
     private ArchivePostDetail postDetail;
-    private List<ArchiveImageInfo> imageInfos = new ArrayList<>();
-    private String currentImageDescription = "";
     private boolean isLoadingDetails = false;
-    private boolean isLoadingImage = false;
-
-    private String[] imageUrls;
-    private int currentImageIndex = 0;
-    private Identifier currentImageTexture;
-    private final Map<String, Identifier> imageCache = new ConcurrentHashMap<>();
-    private final Set<String> preloadingImages = ConcurrentHashMap.newKeySet();
-    private String loadingImageUrl = null;
-    private int originalImageWidth = 0;
-    private int originalImageHeight = 0;
-    private final Map<String, int[]> imageDimensionsCache = new ConcurrentHashMap<>();
 
     private final Minecraft client;
+    private final PostImageController imageController;
+    private final AttachmentManager attachmentManager;
+
     private double scrollOffset = 0;
     private int contentHeight = 0;
-
-    private final LoadingSpinner imageLoadingSpinner;
 
     private CustomButton prevImageButton;
     private CustomButton nextImageButton;
@@ -90,11 +50,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     private CustomButton websiteButton;
 
     private ScrollBar scrollBar;
-    private List<ArchiveAttachment> availableFiles;
-    private String downloadStatus = "";
     private final List<AttachmentHitbox> attachmentHitboxes = new ArrayList<>();
 
-    private ImageViewerWidget imageViewer;
     private Consumer<String> discordLinkOpener;
 
     public PostDetailPanel(int x, int y, int width, int height) {
@@ -103,7 +60,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         this.width = width;
         this.height = height;
         this.client = Minecraft.getInstance();
-        this.imageLoadingSpinner = new LoadingSpinner(0, 0);
+        this.imageController = new PostImageController(this.client);
+        this.attachmentManager = new AttachmentManager(this.client);
         int scrollBarYOffset = 30;
         this.scrollBar = new ScrollBar(x + width - 8, y + scrollBarYOffset, height - scrollBarYOffset);
     }
@@ -130,6 +88,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     private int getActualImageWidth() {
+        int originalImageWidth = imageController.getOriginalImageWidth();
+        int originalImageHeight = imageController.getOriginalImageHeight();
+
         if (originalImageWidth <= 0 || originalImageHeight <= 0) {
             return getDisplayImageWidth();
         }
@@ -147,6 +108,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     private int getActualImageHeight() {
+        int originalImageWidth = imageController.getOriginalImageWidth();
+        int originalImageHeight = imageController.getOriginalImageHeight();
         if (originalImageWidth <= 0 || originalImageHeight <= 0) {
             return getDisplayImageHeight();
         }
@@ -164,7 +127,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     private void updateCarouselButtons(int imageNavY) {
-        if (imageUrls == null || imageUrls.length <= 1) {
+        int imageCount = imageController.getImageCount();
+        if (imageCount <= 1) {
             prevImageButton = null;
             nextImageButton = null;
             return;
@@ -175,7 +139,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         int btnHeight = compact ? 14 : 16;
         int btnSpacing = compact ? 5 : 10;
 
-        String indicator = String.format("%d / %d", currentImageIndex + 1, imageUrls.length);
+        String indicator = String.format("%d / %d", imageController.getCurrentImageIndex() + 1, imageCount);
         int indicatorWidth = client.font.width(indicator);
         int indicatorX = x + (width - indicatorWidth) / 2;
 
@@ -184,7 +148,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         if (prevImageButton == null) {
             prevImageButton = new CustomButton(prevBtnX, imageNavY, btnWidth, btnHeight,
-                    Component.nullToEmpty("<"), btn -> previousImage());
+                    Component.nullToEmpty("<"), btn -> imageController.previousImage());
         } else {
             prevImageButton.setX(prevBtnX);
             prevImageButton.setY(imageNavY);
@@ -193,7 +157,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         if (nextImageButton == null) {
             nextImageButton = new CustomButton(nextBtnX, imageNavY, btnWidth, btnHeight,
-                    Component.nullToEmpty(">"), btn -> nextImage());
+                    Component.nullToEmpty(">"), btn -> imageController.nextImage());
         } else {
             nextImageButton.setX(nextBtnX);
             nextImageButton.setY(imageNavY);
@@ -212,19 +176,13 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         }
 
         clearDownloadState();
+        imageController.clear();
 
         this.postInfo = post;
         this.postDetail = null;
         this.isLoadingDetails = true;
-        this.currentImageIndex = 0;
-        this.currentImageTexture = null;
-        this.originalImageWidth = 0;
-        this.originalImageHeight = 0;
         this.scrollOffset = 0;
-        this.imageInfos = new ArrayList<>();
-        this.currentImageDescription = "";
         this.attachmentHitboxes.clear();
-        this.downloadStatus = "";
 
         ArchiveNetworkManager.getPostDetails(post)
                 .thenAccept(this::handlePostDetailLoaded)
@@ -239,7 +197,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                     return null;
                 });
 
-        this.imageUrls = new String[0];
+        imageController.setImages(List.of());
     }
 
     private void handlePostDetailLoaded(ArchivePostDetail detail) {
@@ -247,391 +205,34 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             client.execute(() -> {
                 this.postDetail = detail;
                 this.isLoadingDetails = false;
-                this.availableFiles = detail.attachments() != null ? new ArrayList<>(detail.attachments())
-                        : new ArrayList<>();
-                this.imageInfos = detail.imageInfos() != null ? new ArrayList<>(detail.imageInfos())
-                        : new ArrayList<>();
+                attachmentManager.setAvailableFiles(detail.attachments());
+                imageController.setImageInfos(detail.imageInfos());
 
                 List<String> detailImages = detail.images();
                 if (detailImages != null && !detailImages.isEmpty()) {
-                    this.imageUrls = detailImages.toArray(new String[0]);
-                    if (currentImageIndex >= imageUrls.length) {
-                        currentImageIndex = 0;
-                    }
-                    updateCurrentImageDescription(imageUrls[currentImageIndex]);
-                    if (currentImageTexture == null && imageUrls.length > 0) {
-                        loadImage(imageUrls[currentImageIndex]);
-                    }
-                    preloadNextImage(false);
+                    imageController.setImages(detailImages);
+                    imageController.loadCurrentImageIfNeeded();
+                } else {
+                    imageController.setImages(List.of());
                 }
             });
         }
     }
 
-    private void loadImage(String imageUrl) {
-        if (imageUrl == null || imageUrl.isEmpty())
-            return;
-
-        if (imageCache.containsKey(imageUrl)) {
-            currentImageTexture = imageCache.get(imageUrl);
-            int[] dims = imageDimensionsCache.get(imageUrl);
-            if (dims != null) {
-                originalImageWidth = dims[0];
-                originalImageHeight = dims[1];
-            }
-            updateCurrentImageDescription(imageUrl);
-            isLoadingImage = false;
-            return;
-        }
-
-        isLoadingImage = true;
-        loadingImageUrl = imageUrl;
-
-        loadImageAsync(imageUrl).thenAccept(texId -> {
-            if (client != null) {
-                client.execute(() -> {
-                    if (imageUrl.equals(loadingImageUrl)) {
-                        currentImageTexture = texId;
-                        int[] dims = imageDimensionsCache.get(imageUrl);
-                        if (dims != null) {
-                            originalImageWidth = dims[0];
-                            originalImageHeight = dims[1];
-                        }
-                        updateCurrentImageDescription(imageUrl);
-                        isLoadingImage = false;
-                    }
-                });
-            }
-        }).exceptionally(ex -> {
-            if (client != null) {
-                client.execute(() -> {
-                    isLoadingImage = false;
-                    System.err.println("Failed to load image: " + ex.getMessage());
-                });
-            }
-            return null;
-        });
-    }
-
-    private void preloadNextImage(boolean reversed) {
-        if (imageUrls == null || imageUrls.length <= 1) {
-            return;
-        }
-
-        int nextIndex = (currentImageIndex + (reversed ? -1 : 1) + imageUrls.length) % imageUrls.length;
-        String nextUrl = imageUrls[nextIndex];
-        if (nextUrl == null || nextUrl.isEmpty()) {
-            return;
-        }
-        if (imageCache.containsKey(nextUrl) || nextUrl.equals(loadingImageUrl) || preloadingImages.contains(nextUrl)) {
-            return;
-        }
-
-        preloadingImages.add(nextUrl);
-        loadImageAsync(nextUrl).handle((tex, ex) -> {
-            preloadingImages.remove(nextUrl);
-            if (ex != null && client != null) {
-                client.execute(() -> System.err.println("Failed to preload image: " + ex.getMessage()));
-            }
-            return null;
-        });
-    }
-
-    private CompletableFuture<Identifier> loadImageAsync(String imageUrl) {
-        if (imageCache.containsKey(imageUrl)) {
-            return CompletableFuture.completedFuture(imageCache.get(imageUrl));
-        }
-
-        String encodedUrl = encodeImageUrl(imageUrl);
-
-        HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(encodedUrl))
-                .GET()
-                .header("User-Agent", ArchiveNetworkManager.USER_AGENT)
-                .build();
-
-        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
-                .thenApply(response -> {
-                    if (response.statusCode() != 200) {
-                        throw new CompletionException(new RuntimeException("HTTP error: " + response.statusCode()));
-                    }
-
-                    byte[] imageData = response.body();
-                    byte[] pngBytes;
-                    try {
-                        pngBytes = convertImageToPng(imageData);
-                    } catch (Exception e) {
-                        throw new CompletionException(e);
-                    }
-
-                    NativeImage nativeImage;
-                    try {
-                        nativeImage = NativeImage.read(new ByteArrayInputStream(pngBytes));
-                    } catch (Exception e) {
-                        throw new CompletionException(e);
-                    }
-
-                    int imgWidth = nativeImage.getWidth();
-                    int imgHeight = nativeImage.getHeight();
-
-                    if (imgWidth <= 0 || imgHeight <= 0 || imgWidth > 4096 || imgHeight > 4096) {
-                        nativeImage.close();
-                        throw new CompletionException(new RuntimeException("Invalid image dimensions"));
-                    }
-
-                    imageDimensionsCache.put(imageUrl, new int[] { imgWidth, imgHeight });
-
-                    final String uniqueId = UUID.randomUUID().toString().replace("-", "");
-                    final Identifier texId = Identifier.fromNamespaceAndPath("litematicdownloader",
-                            "textures/dynamic/" + uniqueId);
-
-                    if (client != null) {
-                        client.execute(() -> {
-                            client.getTextureManager().register(
-                                    texId,
-                                    new DynamicTexture(() -> "archive_image", nativeImage));
-                            imageCache.put(imageUrl, texId);
-                        });
-                    }
-                    return texId;
-                });
-    }
-
-    private void updateCurrentImageDescription(String imageUrl) {
-        currentImageDescription = "";
-        if (imageUrl == null)
-            return;
-        for (ArchiveImageInfo info : imageInfos) {
-            if (info != null && imageUrl.equals(info.url())) {
-                currentImageDescription = info.description() != null ? info.description() : "";
-                break;
-            }
-        }
-    }
-
-    private String getCurrentImageDescription() {
-        return currentImageDescription != null ? currentImageDescription : "";
-    }
-
-    private String encodeImageUrl(String url) {
-        try {
-            URI uri = URI.create(url);
-            String path = uri.getPath();
-            String encodedPath = path.replace(" ", "%20");
-            return uri.getScheme() + "://" + uri.getHost() +
-                    (uri.getPort() != -1 ? ":" + uri.getPort() : "") +
-                    encodedPath +
-                    (uri.getQuery() != null ? "?" + uri.getQuery() : "");
-        } catch (Exception e) {
-            return url.replace(" ", "%20");
-        }
-    }
-
-    private byte[] convertImageToPng(byte[] imageData) throws Exception {
-        BufferedImage bufferedImage = null;
-
-        try (ImageInputStream iis = ImageIO.createImageInputStream(new ByteArrayInputStream(imageData))) {
-            Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
-            if (readers.hasNext()) {
-                ImageReader reader = readers.next();
-                try {
-                    reader.setInput(iis);
-                    bufferedImage = reader.read(0);
-                } finally {
-                    reader.dispose();
-                }
-            }
-        } catch (Exception e) {
-        }
-
-        if (bufferedImage == null) {
-            bufferedImage = ImageIO.read(new ByteArrayInputStream(imageData));
-        }
-
-        if (bufferedImage == null) {
-            throw new Exception("Failed to decode image");
-        }
-
-        if (bufferedImage.getType() != BufferedImage.TYPE_INT_RGB &&
-                bufferedImage.getType() != BufferedImage.TYPE_INT_ARGB) {
-            BufferedImage converted = new BufferedImage(
-                    bufferedImage.getWidth(),
-                    bufferedImage.getHeight(),
-                    BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g2d = converted.createGraphics();
-            g2d.drawImage(bufferedImage, 0, 0, null);
-            g2d.dispose();
-            bufferedImage = converted;
-        }
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(bufferedImage, "PNG", baos);
-        return baos.toByteArray();
-    }
 
     public void clear() {
         this.postInfo = null;
         this.postDetail = null;
         this.isLoadingDetails = false;
-        this.isLoadingImage = false;
-        this.currentImageTexture = null;
-        this.originalImageWidth = 0;
-        this.originalImageHeight = 0;
-        this.imageUrls = null;
-        this.currentImageIndex = 0;
         this.scrollOffset = 0;
+        imageController.clear();
         clearDownloadState();
     }
 
     private void clearDownloadState() {
-        this.availableFiles = new ArrayList<>();
-        this.downloadStatus = "";
+        attachmentManager.clear();
         this.discordThreadButton = null;
         this.websiteButton = null;
-        this.preloadingImages.clear();
-        this.imageCache.clear();
-    }
-
-    private void downloadSchematic(ArchiveAttachment file) {
-        downloadStatus = "Downloading...";
-
-        CompletableFuture.runAsync(() -> {
-            String downloadUrl = file.downloadUrl();
-            if (downloadUrl == null || downloadUrl.isEmpty()) {
-                client.execute(() -> {
-                    downloadStatus = "Invalid download URL";
-                });
-                System.err.println("[Download] Invalid download URL");
-                return;
-            }
-
-            System.out.println("[Download] Starting download from: " + downloadUrl);
-            System.out.println("[Download] File: " + file.name());
-
-            String encodedUrl = downloadUrl.replace(" ", "%20");
-
-            HttpClient httpClient = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(30))
-                    .followRedirects(HttpClient.Redirect.ALWAYS)
-                    .build();
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(encodedUrl))
-                    .GET()
-                    .header("User-Agent", ArchiveNetworkManager.USER_AGENT)
-                    .build();
-
-            System.out.println("[Download] Sending request...");
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
-                    .thenAccept(response -> handleDownloadResponse(file, response))
-                    .exceptionally(e -> {
-                        handleDownloadError(e);
-                        return null;
-                    });
-        });
-    }
-
-    private void handleDownloadResponse(ArchiveAttachment file, HttpResponse<byte[]> response) {
-        System.out.println("[Download] Response status: " + response.statusCode());
-        System.out.println("[Download] Content length: " + response.body().length);
-
-        if (response.statusCode() != 200) {
-            String errorMsg;
-            switch (response.statusCode()) {
-                case 404:
-                    errorMsg = "✗ Error: File not found on server";
-                    break;
-                case 403:
-                    errorMsg = "✗ Error: Access denied";
-                    break;
-                case 500:
-                case 502:
-                case 503:
-                    errorMsg = "✗ Error: Server error (" + response.statusCode() + ")";
-                    break;
-                case 429:
-                    errorMsg = "✗ Error: Too many requests, try again later";
-                    break;
-                default:
-                    errorMsg = "✗ Download failed: HTTP " + response.statusCode();
-            }
-            System.err.println("[Download] " + errorMsg);
-            client.execute(() -> {
-                downloadStatus = errorMsg;
-            });
-            return;
-        }
-
-        AttachmentSaver.saveAsync(file, response.body())
-                .thenAccept(result -> {
-                    final String finalFileName = result.fileName();
-                    final Path finalPath = result.path();
-                    client.execute(() -> {
-                        boolean attemptedAutoLoad = shouldAutoLoadSchematic(file, finalPath);
-                        boolean autoLoaded = attemptedAutoLoad && LitematicaAutoLoader.loadIntoWorld(finalPath);
-                        downloadStatus = buildDownloadStatus(result, finalFileName, attemptedAutoLoad, autoLoaded);
-                        System.out.println("Downloaded to: " + finalPath.toAbsolutePath());
-                    });
-                })
-                .exceptionally(ex -> {
-                    handleDownloadError(ex);
-                    return null;
-                });
-    }
-
-    private void handleDownloadError(Throwable throwable) {
-        Throwable e = throwable instanceof CompletionException && throwable.getCause() != null ? throwable.getCause()
-                : throwable;
-        client.execute(() -> {
-            String errorMsg;
-            if (e instanceof java.net.UnknownHostException) {
-                errorMsg = "✗ Error: No internet connection";
-            } else if (e instanceof java.net.SocketTimeoutException) {
-                errorMsg = "✗ Error: Connection timeout";
-            } else if (e instanceof java.io.FileNotFoundException) {
-                errorMsg = "✗ Error: File not found";
-            } else if (e instanceof java.io.IOException && e.getMessage().contains("Permission denied")) {
-                errorMsg = "✗ Error: Cannot write to disk (permission denied)";
-            } else if (e instanceof java.io.IOException && e.getMessage().contains("No space")) {
-                errorMsg = "✗ Error: Not enough disk space";
-            } else {
-                String msg = e.getMessage();
-                if (msg != null && msg.length() > 40) {
-                    msg = msg.substring(0, 37) + "...";
-                }
-                errorMsg = "✗ Error: " + (msg != null ? msg : "Unknown error");
-            }
-
-            downloadStatus = errorMsg;
-            System.err.println("Failed to download schematic: " + e.getMessage());
-            e.printStackTrace();
-        });
-    }
-
-    private boolean shouldAutoLoadSchematic(ArchiveAttachment attachment, Path savedPath) {
-        if (attachment != null && attachment.wdl() != null) {
-            return false;
-        }
-        if (savedPath == null || savedPath.getFileName() == null) {
-            return false;
-        }
-        String fileName = savedPath.getFileName().toString().toLowerCase(Locale.ROOT);
-        return LitematicaAutoLoader.isAvailable() && fileName.endsWith(".litematic");
-    }
-
-    private String buildDownloadStatus(AttachmentSaver.SaveResult result, String fileName, boolean attemptedAutoLoad,
-            boolean autoLoaded) {
-        String base = result.isWorldDownload()
-                ? "✓ World saved: saves/" + fileName
-                : "✓ Downloaded: " + fileName;
-        if (result.isWorldDownload() || !attemptedAutoLoad) {
-            return base;
-        }
-        return autoLoaded ? ("✓ Loaded " + fileName) : "- Downloaded (but failed to load): " + fileName;
     }
 
     private boolean hasDiscordThread() {
@@ -754,13 +355,17 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         int imageX = containerX + (containerWidth - actualImageWidth) / 2;
         int imageY = containerY + (containerHeight - actualImageHeight) / 2;
 
+        Identifier currentImageTexture = imageController.getCurrentImageTexture();
+        boolean isLoadingImage = imageController.isLoadingImage();
+
         if (isLoadingImage) {
             RenderUtil.fillRect(context, containerX, containerY, containerX + containerWidth, containerY + containerHeight,
                     UITheme.Colors.CONTAINER_BG);
-            imageLoadingSpinner.setPosition(
-                    containerX + containerWidth / 2 - imageLoadingSpinner.getWidth() / 2,
-                    containerY + containerHeight / 2 - imageLoadingSpinner.getHeight() / 2);
-            imageLoadingSpinner.render(context, mouseX, mouseY, delta);
+            LoadingSpinner spinner = imageController.getLoadingSpinner();
+            spinner.setPosition(
+                    containerX + containerWidth / 2 - spinner.getWidth() / 2,
+                    containerY + containerHeight / 2 - spinner.getHeight() / 2);
+            spinner.render(context, mouseX, mouseY, delta);
         } else if (currentImageTexture != null) {
             RenderUtil.fillRect(context, containerX, containerY, containerX + containerWidth, containerY + containerHeight,
                     UITheme.Colors.PANEL_BG);
@@ -785,7 +390,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         currentY += containerHeight + UITheme.Dimensions.PADDING;
         contentHeight += containerHeight + UITheme.Dimensions.PADDING;
 
-        String imageDescription = getCurrentImageDescription();
+        String imageDescription = imageController.getCurrentImageDescription();
         if (imageDescription != null && !imageDescription.isEmpty()) {
             int descWidth = width - UITheme.Dimensions.PADDING * 2;
             drawWrappedText(context, imageDescription, x + UITheme.Dimensions.PADDING, currentY, descWidth,
@@ -795,8 +400,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             contentHeight += descHeight + 6;
         }
 
-        if (imageUrls != null && imageUrls.length > 1) {
-            String indicator = String.format("%d / %d", currentImageIndex + 1, imageUrls.length);
+        if (imageController.hasMultipleImages()) {
+            String indicator = String.format("%d / %d", imageController.getCurrentImageIndex() + 1,
+                    imageController.getImageCount());
             int indicatorWidth = client.font.width(indicator);
             int indicatorX = x + (width - indicatorWidth) / 2;
             int btnY = currentY;
@@ -847,14 +453,14 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             contentHeight += 12;
 
             int tagX = x + UITheme.Dimensions.PADDING;
-            for (String tag : orderTags(tags)) {
+            for (String tag : TagUtil.orderTags(tags)) {
                 int tagWidth = client.font.width(tag) + 8;
                 if (tagX + tagWidth > x + width - UITheme.Dimensions.PADDING) {
                     tagX = x + UITheme.Dimensions.PADDING;
                     currentY += 14;
                     contentHeight += 14;
                 }
-                RenderUtil.fillRect(context, tagX, currentY, tagX + tagWidth, currentY + 12, getTagColor(tag));
+                RenderUtil.fillRect(context, tagX, currentY, tagX + tagWidth, currentY + 12, TagUtil.getTagColor(tag));
                 RenderUtil.drawString(context, client.font, tag, tagX + 4, currentY + 2, UITheme.Colors.TEXT_TAG);
                 tagX += tagWidth + 4;
             }
@@ -896,7 +502,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             contentHeight += 20;
         }
 
-        if (availableFiles != null && !availableFiles.isEmpty()) {
+        if (attachmentManager.hasAttachments()) {
             RenderUtil.drawString(context, client.font, "Attachments:", x + UITheme.Dimensions.PADDING, currentY,
                     UITheme.Colors.TEXT_SUBTITLE);
             currentY += 12;
@@ -904,12 +510,12 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
             int rowWidth = width - UITheme.Dimensions.PADDING * 2;
             int rowX = x + UITheme.Dimensions.PADDING;
-            for (ArchiveAttachment attachment : availableFiles) {
+            for (ArchiveAttachment attachment : attachmentManager.getAvailableFiles()) {
                 if (attachment == null)
                     continue;
                 int rowY = currentY;
                 String nameText = attachment.name() != null ? attachment.name() : "Attachment";
-                String meta = buildAttachmentMeta(attachment);
+                String meta = attachmentManager.buildAttachmentMeta(attachment);
                 int nameHeight = (int) (client.font.lineHeight * 0.85f) + 6;
                 int metaHeight = (meta != null && !meta.isEmpty()) ? client.font.lineHeight + 2 : 0;
                 int descWidth = rowWidth - 12;
@@ -945,6 +551,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 contentHeight += rowHeight + 6;
             }
 
+            String downloadStatus = attachmentManager.getDownloadStatus();
             if (downloadStatus != null && !downloadStatus.isEmpty()) {
                 int statusWidth = rowWidth - 4;
                 drawWrappedText(context, downloadStatus, rowX, currentY, statusWidth, UITheme.Colors.TEXT_SUBTITLE);
@@ -996,13 +603,11 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     public boolean hasImageViewerOpen() {
-        return imageViewer != null;
+        return imageController.hasImageViewerOpen();
     }
 
     public void renderImageViewer(GuiGraphics context, int mouseX, int mouseY, float delta) {
-        if (imageViewer != null) {
-            imageViewer.render(context, mouseX, mouseY, delta);
-        }
+        imageController.renderImageViewer(context, mouseX, mouseY, delta);
     }
 
     private void drawWrappedText(GuiGraphics context, String text, int textX, int textY, int maxWidth, int color) {
@@ -1103,96 +708,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 .format(Instant.ofEpochMilli(millis));
     }
 
-    private String buildAttachmentMeta(ArchiveAttachment attachment) {
-        if (attachment == null)
-            return "";
-        if (attachment.youtube() != null) {
-            ArchiveAttachment.YoutubeInfo yt = attachment.youtube();
-            List<String> parts = new ArrayList<>();
-            if (yt.title() != null && !yt.title().isEmpty())
-                parts.add(yt.title());
-            if (yt.authorName() != null && !yt.authorName().isEmpty())
-                parts.add("by " + yt.authorName());
-            return parts.isEmpty() ? "YouTube" : "YouTube • " + String.join(" • ", parts);
-        }
-        if (attachment.litematic() != null) {
-            ArchiveAttachment.LitematicInfo info = attachment.litematic();
-            List<String> parts = new ArrayList<>();
-            if (info.version() != null && !info.version().isEmpty())
-                parts.add("Version " + info.version());
-            if (info.size() != null && !info.size().isEmpty())
-                parts.add(info.size());
-            if (info.error() != null && !info.error().isEmpty())
-                parts.add("Error: " + info.error());
-            return parts.isEmpty() ? "Litematic" : "Litematic • " + String.join(" • ", parts);
-        }
-        if (attachment.wdl() != null) {
-            ArchiveAttachment.WdlInfo info = attachment.wdl();
-            List<String> parts = new ArrayList<>();
-            if (info.version() != null && !info.version().isEmpty())
-                parts.add("Version " + info.version());
-            if (info.error() != null && !info.error().isEmpty())
-                parts.add("Error: " + info.error());
-            return parts.isEmpty() ? "WorldDL" : "WorldDL • " + String.join(" • ", parts);
-        }
-        return attachment.contentType() != null ? attachment.contentType() : "";
-    }
-
-    private void openAttachmentUrl(ArchiveAttachment attachment) {
-        if (attachment == null)
-            return;
-        String url = attachment.downloadUrl();
-        if (url == null || url.isEmpty()) {
-            return;
-        }
-        try {
-            Util.getPlatform().openUri(url);
-        } catch (Exception e) {
-            System.err.println("Failed to open attachment URL: " + e.getMessage());
-        }
-    }
-
-    private int getTagColor(String tag) {
-        if (tag == null)
-            return TAG_BG_COLOR;
-        String lower = tag.toLowerCase();
-        if (lower.contains("untested"))
-            return 0xFF8C6E00;
-        if (lower.contains("broken"))
-            return 0xFF8B1A1A;
-        if (lower.contains("tested") || lower.contains("functional"))
-            return 0xFF1E7F1E;
-        if (lower.contains("recommend"))
-            return 0xFFB8860B;
-        return TAG_BG_COLOR;
-    }
-
-    private List<String> orderTags(String[] tags) {
-        List<String> list = new ArrayList<>();
-        if (tags == null)
-            return list;
-        List<String> specials = List.of("untested", "broken", "tested & functional", "recommended");
-        Set<String> seen = new HashSet<>();
-        for (String s : specials) {
-            for (String tag : tags) {
-                if (tag == null)
-                    continue;
-                if (tag.toLowerCase().equals(s) && seen.add(tag.toLowerCase())) {
-                    list.add(tag);
-                }
-            }
-        }
-        for (String tag : tags) {
-            if (tag == null)
-                continue;
-            String key = tag.toLowerCase();
-            if (seen.add(key)) {
-                list.add(tag);
-            }
-        }
-        return list;
-    }
-
     private record AttachmentHitbox(int x1, int y1, int x2, int y2, ArchiveAttachment attachment) {
         boolean contains(double px, double py) {
             return px >= x1 && px <= x2 && py >= y1 && py <= y2;
@@ -1200,8 +715,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (imageViewer != null) {
-            return imageViewer.mouseClicked(mouseX, mouseY, button);
+        if (imageController.hasImageViewerOpen()) {
+            return imageController.mouseClicked(mouseX, mouseY, button);
         }
 
         if (websiteButton != null && websiteButton.active && button == 0) {
@@ -1232,6 +747,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             return true;
         }
 
+        Identifier currentImageTexture = imageController.getCurrentImageTexture();
+        boolean isLoadingImage = imageController.isLoadingImage();
         if (button == 0 && currentImageTexture != null && !isLoadingImage && postInfo != null) {
             int contentStartY = y + UITheme.Dimensions.PADDING;
             int currentY = contentStartY + UITheme.Dimensions.PADDING - (int) scrollOffset;
@@ -1254,14 +771,14 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             }
         }
 
-        if (button == 0 && imageUrls != null && imageUrls.length > 1) {
+        if (button == 0 && imageController.hasMultipleImages()) {
             if (prevImageButton != null) {
                 boolean isOverPrev = mouseX >= prevImageButton.getX() &&
                         mouseX < prevImageButton.getX() + prevImageButton.getWidth() &&
                         mouseY >= prevImageButton.getY() &&
                         mouseY < prevImageButton.getY() + prevImageButton.getHeight();
                 if (isOverPrev) {
-                    previousImage();
+                    imageController.previousImage();
                     return true;
                 }
             }
@@ -1272,7 +789,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                         mouseY >= nextImageButton.getY() &&
                         mouseY < nextImageButton.getY() + nextImageButton.getHeight();
                 if (isOverNext) {
-                    nextImage();
+                    imageController.nextImage();
                     return true;
                 }
             }
@@ -1281,11 +798,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         if (button == 0 && !attachmentHitboxes.isEmpty()) {
             for (AttachmentHitbox hit : attachmentHitboxes) {
                 if (hit.contains(mouseX, mouseY) && hit.attachment() != null) {
-                    if (hit.attachment().isDownloadable()) {
-                        downloadSchematic(hit.attachment());
-                    } else {
-                        openAttachmentUrl(hit.attachment());
-                    }
+                    attachmentManager.handleAttachmentClick(hit.attachment());
                     return true;
                 }
             }
@@ -1294,65 +807,12 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         return true;
     }
 
-    private void previousImage() {
-        if (imageUrls != null && imageUrls.length > 1) {
-            currentImageIndex = (currentImageIndex - 1 + imageUrls.length) % imageUrls.length;
-            updateCurrentImageDescription(imageUrls[currentImageIndex]);
-            loadImage(imageUrls[currentImageIndex]);
-            preloadNextImage(true);
-        }
-    }
-
-    private void nextImage() {
-        if (imageUrls != null && imageUrls.length > 1) {
-            currentImageIndex = (currentImageIndex + 1) % imageUrls.length;
-            updateCurrentImageDescription(imageUrls[currentImageIndex]);
-            loadImage(imageUrls[currentImageIndex]);
-            preloadNextImage(false);
-        }
-    }
-
     private void openImageViewer() {
-        if (currentImageTexture != null && client != null && client.getWindow() != null) {
-            int screenWidth = client.getWindow().getGuiScaledWidth();
-            int screenHeight = client.getWindow().getGuiScaledHeight();
-
-            int totalImages = (imageUrls != null) ? imageUrls.length : 1;
-
-            imageViewer = new ImageViewerWidget(
-                    client,
-                    currentImageTexture,
-                    originalImageWidth,
-                    originalImageHeight,
-                    currentImageIndex,
-                    totalImages,
-                    this::previousImageInViewer,
-                    this::nextImageInViewer,
-                    this::closeImageViewer);
-            imageViewer.updateLayout(screenWidth, screenHeight);
+        if (imageController.getCurrentImageTexture() != null && client != null && client.getWindow() != null) {
+            imageController.openImageViewer(
+                    client.getWindow().getGuiScaledWidth(),
+                    client.getWindow().getGuiScaledHeight());
         }
-    }
-
-    private void previousImageInViewer() {
-        if (imageUrls != null && imageUrls.length > 1) {
-            currentImageIndex = (currentImageIndex - 1 + imageUrls.length) % imageUrls.length;
-            loadImage(imageUrls[currentImageIndex]);
-            closeImageViewer();
-            openImageViewer();
-        }
-    }
-
-    private void nextImageInViewer() {
-        if (imageUrls != null && imageUrls.length > 1) {
-            currentImageIndex = (currentImageIndex + 1) % imageUrls.length;
-            loadImage(imageUrls[currentImageIndex]);
-            closeImageViewer();
-            openImageViewer();
-        }
-    }
-
-    private void closeImageViewer() {
-        imageViewer = null;
     }
 
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
@@ -1366,8 +826,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (imageViewer != null) {
-            return imageViewer.mouseReleased(mouseX, mouseY, button);
+        if (imageController.hasImageViewerOpen()) {
+            return imageController.mouseReleased(mouseX, mouseY, button);
         }
 
         if (scrollBar != null && scrollBar.mouseReleased(mouseX, mouseY, button)) {
@@ -1377,7 +837,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (imageViewer != null) {
+        if (imageController.hasImageViewerOpen()) {
             return true;
         }
 
@@ -1390,16 +850,16 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (imageViewer != null) {
-            return imageViewer.keyPressed(keyCode, scanCode, modifiers);
+        if (imageController.hasImageViewerOpen()) {
+            return imageController.keyPressed(keyCode, scanCode, modifiers);
         }
 
-        if (imageUrls != null && imageUrls.length > 1) {
+        if (imageController.hasMultipleImages()) {
             if (keyCode == 263) { // Left arrow
-                previousImage();
+                imageController.previousImage();
                 return true;
             } else if (keyCode == 262) { // Right arrow
-                nextImage();
+                imageController.nextImage();
                 return true;
             }
         }

@@ -682,7 +682,6 @@ public class ArchiveNetworkManager {
 		String contentType;
 		ArchiveLitematicInfo litematic;
 		ArchiveWdlInfo wdl;
-		@SuppressWarnings("unused")
 		ArchiveYoutubeInfo youtube;
 		Boolean canDownload;
 		String path;
@@ -700,11 +699,8 @@ public class ArchiveNetworkManager {
 	}
 
 	private static class ArchiveYoutubeInfo {
-		@SuppressWarnings("unused")
 		String title;
-		@SuppressWarnings("unused")
 		String author_name;
-		@SuppressWarnings("unused")
 		String author_url;
 		@SuppressWarnings("unused")
 		String thumbnail_url;

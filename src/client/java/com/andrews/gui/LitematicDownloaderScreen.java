@@ -9,9 +9,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.andrews.config.DownloadSettings;
@@ -30,6 +28,7 @@ import com.andrews.models.ArchivePostSummary;
 import com.andrews.models.ArchiveSearchResult;
 import com.andrews.network.ArchiveNetworkManager;
 import com.andrews.util.RenderUtil;
+import com.andrews.util.TagUtil;
 
 public class LitematicDownloaderScreen extends Screen {
     private static final int SEARCH_BAR_HEIGHT = 20;
@@ -680,9 +679,9 @@ public class LitematicDownloaderScreen extends Screen {
                 .findFirst()
                 .map(c -> c.availableTags() != null ? c.availableTags() : List.<String>of())
                 .orElse(List.of());
-            return orderTags(tags);
+            return TagUtil.orderTags(tags);
         }
-        return orderTags(List.of("Untested", "Broken", "Tested & Functional", "Recommended"));
+        return TagUtil.orderTags(List.of("Untested", "Broken", "Tested & Functional", "Recommended"));
     }
 
     private List<String> getTagList(TagState state) {
@@ -716,30 +715,6 @@ public class LitematicDownloaderScreen extends Screen {
         if (tagFilterWidget != null) {
             tagFilterWidget.setData(getDisplayedTags(), tagCounts, convertTagStates());
         }
-    }
-
-    private List<String> orderTags(List<String> tags) {
-        if (tags == null) return List.of();
-        List<String> specials = List.of("untested", "broken", "tested & functional", "recommended");
-        List<String> ordered = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (String s : specials) {
-            for (String tag : tags) {
-                if (tag == null) continue;
-                if (tag.toLowerCase().equals(s) && seen.add(tag.toLowerCase())) {
-                    ordered.add(tag);
-                }
-            }
-        }
-        for (String tag : tags) {
-            if (tag == null) continue;
-            String key = tag.toLowerCase();
-            if (!seen.contains(key)) {
-                ordered.add(tag);
-                seen.add(key);
-            }
-        }
-        return ordered;
     }
 
     private Map<String, TagFilterWidget.TagState> convertTagStates() {
