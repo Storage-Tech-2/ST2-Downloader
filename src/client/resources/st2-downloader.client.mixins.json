@@ -2,8 +2,9 @@
 	"required": true,
 	"package": "com.andrews.mixin.client",
 	"compatibilityLevel": "JAVA_21",
+	"plugin": "com.andrews.mixin.client.MixinClientPlugin",
 	"client": [
-		"ExampleClientMixin"
+		"LitematicaGuiMainMenuMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

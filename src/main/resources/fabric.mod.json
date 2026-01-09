@@ -29,6 +29,10 @@
 		"java": ">=21",
 		"fabric-api": "*"
 	},
+	"mixins": [
+		"st2-downloader.mixins.json",
+		"st2-downloader.client.mixins.json"
+	],
 	"suggests": {
 		"another-mod": "*"
 	}
