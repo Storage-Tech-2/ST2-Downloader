@@ -36,8 +36,8 @@ public abstract class LitematicaGuiMainMenuMixin extends GuiBase {
 
     @Unique
     private void st2$createArchiveButton(int x, int y, int width) {
-        String label = "Archive Browser";
-        ButtonGeneric button = new ButtonGeneric(x, y, width, 20, label, null, new String[] { "Open the ST2 Downloader archive browser" });
+        String label = "ST2 Browser";
+        ButtonGeneric button = new ButtonGeneric(x, y, width, 20, label, null, new String[] { "Open the ST2 archive browser" });
         addButton(button, (btn, mouseButton) -> MinecraftClient.getInstance().setScreen(new LitematicDownloaderScreen()));
     }
 
