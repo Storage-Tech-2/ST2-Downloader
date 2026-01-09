@@ -431,7 +431,7 @@ public class PostGridWidget implements Renderable, GuiEventListener {
             })
             .thenAccept(bytes -> {
                 if (bytes == null) {
-                    failedImagePosts.add(post.id());
+                    noImagePosts.add(post.id());
                     return;
                 }
                 try {
