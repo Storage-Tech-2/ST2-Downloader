@@ -2,6 +2,7 @@ package com.andrews.gui.widget;
 
 import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchiveChannel;
+import com.andrews.util.RenderUtil;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -25,11 +26,11 @@ public class ChannelDescriptionWidget {
     }
 
     public void render(GuiGraphics context, Font font) {
-        context.fill(x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
-        context.fill(x, y, x + width, y + UITheme.Dimensions.BORDER_WIDTH, UITheme.Colors.BUTTON_BORDER);
-        context.fill(x, y, x + UITheme.Dimensions.BORDER_WIDTH, y + height, UITheme.Colors.BUTTON_BORDER);
-        context.fill(x + width - UITheme.Dimensions.BORDER_WIDTH, y, x + width, y + height, UITheme.Colors.BUTTON_BORDER);
-        context.fill(x, y + height - UITheme.Dimensions.BORDER_WIDTH, x + width, y + height, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
+        RenderUtil.fillRect(context, x, y, x + width, y + UITheme.Dimensions.BORDER_WIDTH, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, x, y, x + UITheme.Dimensions.BORDER_WIDTH, y + height, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, x + width - UITheme.Dimensions.BORDER_WIDTH, y, x + width, y + height, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, x, y + height - UITheme.Dimensions.BORDER_WIDTH, x + width, y + height, UITheme.Colors.BUTTON_BORDER);
 
         int textX = x + UITheme.Dimensions.PADDING;
         int textY = y + UITheme.Dimensions.PADDING;
@@ -49,7 +50,7 @@ public class ChannelDescriptionWidget {
         for (String word : words) {
             String test = line.length() > 0 ? line + " " + word : word;
             if (font.width(test) > maxWidth && line.length() > 0) {
-                context.drawString(font, line.toString(), x, lineY, color);
+                RenderUtil.drawString(context, font, line.toString(), x, lineY, color);
                 line = new StringBuilder(word);
                 lineY += font.lineHeight + 2;
             } else {
@@ -57,7 +58,7 @@ public class ChannelDescriptionWidget {
             }
         }
         if (!line.isEmpty()) {
-            context.drawString(font, line.toString(), x, lineY, color);
+            RenderUtil.drawString(context, font, line.toString(), x, lineY, color);
         }
     }
 }

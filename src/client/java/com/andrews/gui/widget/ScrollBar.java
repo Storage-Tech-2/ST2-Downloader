@@ -5,6 +5,7 @@ import net.minecraft.client.gui.components.Renderable;
 import org.lwjgl.glfw.GLFW;
 
 import com.andrews.gui.theme.UITheme;
+import com.andrews.util.RenderUtil;
 
 public class ScrollBar implements Renderable {
     private static final int MIN_HANDLE_HEIGHT = 20;
@@ -124,11 +125,11 @@ public class ScrollBar implements Renderable {
     }
 
     private void drawScrollBar(GuiGraphics context, double handleHeight) {
-        context.fill(x, y, x + UITheme.Dimensions.SCROLLBAR_WIDTH, y + height, UITheme.Colors.SCROLLBAR_BG);
+        RenderUtil.fillRect(context, x, y, x + UITheme.Dimensions.SCROLLBAR_WIDTH, y + height, UITheme.Colors.SCROLLBAR_BG);
 
         double handleY = getHandleY();
         int handleColor = (isHovered || isDragging) ? UITheme.Colors.SCROLLBAR_THUMB_HOVER : UITheme.Colors.SCROLLBAR_THUMB;
-        context.fill(x, (int)handleY, x + UITheme.Dimensions.SCROLLBAR_WIDTH, (int)(handleY + handleHeight), handleColor);
+        RenderUtil.fillRect(context, (int) x, (int) handleY, (int) (x + UITheme.Dimensions.SCROLLBAR_WIDTH), (int) (handleY + handleHeight), handleColor);
     }
 
     @Override

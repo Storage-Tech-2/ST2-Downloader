@@ -1,5 +1,7 @@
 package com.andrews.gui.widget;
 
+import com.andrews.util.RenderUtil;
+
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
 
@@ -53,7 +55,7 @@ public class LoadingSpinner implements Renderable {
 			int alpha = (int) (opacity * 255);
 			int color = (alpha << 24) | WHITE_COLOR;
 
-			context.fill(blockX, blockY, blockX + BLOCK_SIZE, blockY + BLOCK_SIZE, color);
+			RenderUtil.fillRect(context, blockX, blockY, blockX + BLOCK_SIZE, blockY + BLOCK_SIZE, color);
 		}
 	}
 

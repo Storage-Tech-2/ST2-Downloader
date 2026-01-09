@@ -1,6 +1,7 @@
 package com.andrews.gui.widget;
 
 import com.andrews.gui.theme.UITheme;
+import com.andrews.util.RenderUtil;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -43,7 +44,7 @@ public class CustomButton extends Button {
     }
 
     private void drawBackground(GuiGraphics context, int color) {
-        context.fill(this.getX(), this.getY(), this.getX() + this.getWidth(),
+        RenderUtil.fillRect(context, this.getX(), this.getY(), this.getX() + this.getWidth(),
                     this.getY() + this.getHeight(), color);
     }
 
@@ -55,10 +56,10 @@ public class CustomButton extends Button {
         int borderColor = UITheme.Colors.BUTTON_BORDER;
         int borderWidth = UITheme.Dimensions.BORDER_WIDTH;
 
-        context.fill(x1, y1, x2, y1 + borderWidth, borderColor);
-        context.fill(x1, y2 - borderWidth, x2, y2, borderColor);
-        context.fill(x1, y1, x1 + borderWidth, y2, borderColor);
-        context.fill(x2 - borderWidth, y1, x2, y2, borderColor);
+        RenderUtil.fillRect(context, x1, y1, x2, y1 + borderWidth, borderColor);
+        RenderUtil.fillRect(context, x1, y2 - borderWidth, x2, y2, borderColor);
+        RenderUtil.fillRect(context, x1, y1, x1 + borderWidth, y2, borderColor);
+        RenderUtil.fillRect(context, x2 - borderWidth, y1, x2, y2, borderColor);
     }
 
     private void drawText(GuiGraphics context) {
@@ -70,7 +71,7 @@ public class CustomButton extends Button {
         int centerX = this.getX() + this.getWidth() / 2;
         int centerY = this.getY() + (this.getHeight() - UITheme.Typography.TEXT_HEIGHT) / 2 + yOffset;
 
-        context.drawCenteredString(tr, text, centerX, centerY, textColor);
+        RenderUtil.drawCenteredString(context, tr, text, centerX, centerY, textColor);
     }
 
     private String getDisplayText() {

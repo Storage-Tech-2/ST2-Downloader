@@ -7,6 +7,7 @@ import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 import com.andrews.gui.theme.UITheme;
+import com.andrews.util.RenderUtil;
 
 public class CustomTextField extends EditBox {
 	private static final long KEY_INITIAL_DELAY = 400;
@@ -198,7 +199,7 @@ public class CustomTextField extends EditBox {
 	}
 
 	private void drawBackground(GuiGraphics context) {
-		context.fill(this.getX(), this.getY(),
+		RenderUtil.fillRect(context, this.getX(), this.getY(),
 				this.getX() + this.getWidth(), this.getY() + this.getHeight(),
 				UITheme.Colors.FIELD_BG);
 	}
@@ -211,10 +212,10 @@ public class CustomTextField extends EditBox {
 		int width = this.getWidth();
 		int height = this.getHeight();
 
-		context.fill(x, y, x + width, y + borderWidth, borderColor);
-		context.fill(x, y + height - borderWidth, x + width, y + height, borderColor);
-		context.fill(x, y, x + borderWidth, y + height, borderColor);
-		context.fill(x + width - borderWidth, y, x + width, y + height, borderColor);
+		RenderUtil.fillRect(context, x, y, x + width, y + borderWidth, borderColor);
+		RenderUtil.fillRect(context, x, y + height - borderWidth, x + width, y + height, borderColor);
+		RenderUtil.fillRect(context, x, y, x + borderWidth, y + height, borderColor);
+		RenderUtil.fillRect(context, x + width - borderWidth, y, x + width, y + height, borderColor);
 	}
 
 	private void drawTextContent(GuiGraphics context, int mouseX, int mouseY) {
@@ -232,16 +233,16 @@ public class CustomTextField extends EditBox {
 
 	private void drawPlaceholder(GuiGraphics context, int x, int y) {
 		if (placeholderText != null) {
-			context.drawString(client.font, placeholderText, x, y, UITheme.Colors.TEXT_MUTED);
+			RenderUtil.drawString(context, client.font, placeholderText, x, y, UITheme.Colors.TEXT_MUTED);
 		}
 	}
 
 	private void drawActiveText(GuiGraphics context, String text, int textX, int textY, int maxTextWidth) {
 		int color = this.isFocused() ? UITheme.Colors.TEXT_PRIMARY : UITheme.Colors.TEXT_SUBTITLE;
 
-		context.enableScissor(textX, this.getY(), textX + maxTextWidth, this.getY() + this.getHeight());
-		context.drawString(client.font, text, textX, textY, color);
-		context.disableScissor();
+		RenderUtil.enableScissor(context, textX, this.getY(), textX + maxTextWidth, this.getY() + this.getHeight());
+		RenderUtil.drawString(context, client.font, text, textX, textY, color);
+		RenderUtil.disableScissor(context);
 
 		if (this.isFocused() && this.canConsumeInput()) {
 			drawCursor(context, text, textX, textY);
@@ -253,7 +254,7 @@ public class CustomTextField extends EditBox {
 			int cursorPos = this.getCursorPosition();
 			String beforeCursor = text.substring(0, Math.min(cursorPos, text.length()));
 			int cursorX = textX + client.font.width(beforeCursor);
-			context.fill(cursorX, textY - 1, cursorX + UITheme.Dimensions.BORDER_WIDTH, textY + 9, UITheme.Colors.TEXT_PRIMARY);
+			RenderUtil.fillRect(context, cursorX, textY - 1, cursorX + UITheme.Dimensions.BORDER_WIDTH, textY + 9, UITheme.Colors.TEXT_PRIMARY);
 		}
 	}
 
@@ -269,7 +270,7 @@ public class CustomTextField extends EditBox {
 		int xWidth = client.font.width(xSymbol);
 		int xX = clearX + (CLEAR_BUTTON_SIZE - xWidth) / 2;
 		int xY = clearY + (CLEAR_BUTTON_SIZE - UITheme.Typography.TEXT_HEIGHT) / 2;
-		context.drawString(client.font, xSymbol, xX, xY, clearColor);
+		RenderUtil.drawString(context, client.font, xSymbol, xX, xY, clearColor);
 	}
 
 	private void handleSpecialKeys(long windowHandle) {

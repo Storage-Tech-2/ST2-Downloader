@@ -2,6 +2,7 @@ package com.andrews.gui.widget;
 
 import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchiveChannel;
+import com.andrews.util.RenderUtil;
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
 
 import java.util.ArrayList;
@@ -109,12 +110,12 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
 
     @Override
     public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
-        context.fill(x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
+        RenderUtil.fillRect(context, x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
 
-        context.fill(x, y, x + width, y + UITheme.Dimensions.BORDER_WIDTH, UITheme.Colors.BUTTON_BORDER);
-        context.fill(x, y, x + UITheme.Dimensions.BORDER_WIDTH, y + height, UITheme.Colors.BUTTON_BORDER);
-        context.fill(x + width - UITheme.Dimensions.BORDER_WIDTH, y, x + width, y + height, UITheme.Colors.BUTTON_BORDER);
-        context.fill(x, y + height - UITheme.Dimensions.BORDER_WIDTH, x + width, y + height, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, x, y, x + width, y + UITheme.Dimensions.BORDER_WIDTH, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, x, y, x + UITheme.Dimensions.BORDER_WIDTH, y + height, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, x + width - UITheme.Dimensions.BORDER_WIDTH, y, x + width, y + height, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, x, y + height - UITheme.Dimensions.BORDER_WIDTH, x + width, y + height, UITheme.Colors.BUTTON_BORDER);
         
 
         float scale = 0.9f;
@@ -131,7 +132,7 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
 
         int scrollbarWidth = this.scrollBar.isVisible() ? (UITheme.Dimensions.SCROLLBAR_WIDTH - UITheme.Dimensions.PADDING / 2) : 0;
 
-        context.enableScissor(x, y + HEADER_HEIGHT, x + width - scrollbarWidth, y + height - 10);
+        RenderUtil.enableScissor(context, x, y + HEADER_HEIGHT, x + width - scrollbarWidth, y + height - 10);
 
         int currentY = listStartY;
         for (Map.Entry<String, List<ArchiveChannel>> entry : channelsByCategory.entrySet()) {
@@ -145,7 +146,7 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
             for (ArchiveChannel channel : categoryChannels) {
                 boolean selected = channel.path().equals(selectedPath);
                 int bgColor = selected ? UITheme.Colors.BUTTON_BG_HOVER : UITheme.Colors.PANEL_BG;
-                context.fill(x + UITheme.Dimensions.PADDING / 2, currentY, x + width - scrollbarWidth - UITheme.Dimensions.PADDING / 2, currentY + ITEM_HEIGHT - 2, bgColor);
+                RenderUtil.fillRect(context, x + UITheme.Dimensions.PADDING / 2, currentY, x + width - scrollbarWidth - UITheme.Dimensions.PADDING / 2, currentY + ITEM_HEIGHT - 2, bgColor);
                 String path = channel.path();
                 int count = channelCounts.getOrDefault(path, channel.entryCount());
                 String countText = String.valueOf(count);
@@ -164,7 +165,7 @@ public class ChannelFilterPanel implements Renderable, GuiEventListener {
             contentHeight += 4;
         }
 
-        context.disableScissor();
+        RenderUtil.disableScissor(context);
 
         int visibleHeight = height - HEADER_HEIGHT - 10;
         double scrollable = Math.max(0, contentHeight - height);

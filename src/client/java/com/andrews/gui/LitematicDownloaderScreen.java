@@ -29,6 +29,7 @@ import com.andrews.models.ArchiveChannel;
 import com.andrews.models.ArchivePostSummary;
 import com.andrews.models.ArchiveSearchResult;
 import com.andrews.network.ArchiveNetworkManager;
+import com.andrews.util.RenderUtil;
 
 public class LitematicDownloaderScreen extends Screen {
     private static final int SEARCH_BAR_HEIGHT = 20;
@@ -410,7 +411,8 @@ public class LitematicDownloaderScreen extends Screen {
 
         if (noResultsFound) {
             String noResultsText = "No results found :(";
-            context.drawString(
+            RenderUtil.drawString(
+                context,
                 this.font,
                 noResultsText,
                 leftPanelWidth + PADDING + 20,
@@ -420,7 +422,7 @@ public class LitematicDownloaderScreen extends Screen {
         }
 
         if (showChannelPanel && channelPanel != null) {
-            context.fill(0, 0, this.width, this.height, 0x55000000);
+            RenderUtil.fillRect(context, 0, 0, this.width, this.height, 0x55000000);
             channelPanel.render(context, mouseX, mouseY, delta);
             renderChannelDescription(context, mouseX, mouseY, delta);
             
@@ -444,7 +446,7 @@ public class LitematicDownloaderScreen extends Screen {
         }
 
         if (showDetailOverlay && detailPanel != null) {
-            context.fill(0, 0, this.width, this.height, 0xAA000000);
+            RenderUtil.fillRect(context, 0, 0, this.width, this.height, 0xAA000000);
             detailPanel.render(context, mouseX, mouseY, delta);
             if (detailCloseButton != null) {
                 detailCloseButton.render(context, mouseX, mouseY, delta);

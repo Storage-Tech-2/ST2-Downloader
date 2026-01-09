@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter;
 
 import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchivePostSummary;
+import com.andrews.util.RenderUtil;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -110,7 +111,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
             int testWidth = client.font.width(testLine);
 
             if (testWidth > maxWidth && !line.isEmpty()) {
-                context.drawString(client.font, line.toString(), textX, lineY, color);
+                RenderUtil.drawString(context, client.font, line.toString(), textX, lineY, color);
                 line = new StringBuilder(word);
                 lineY += LINE_HEIGHT;
             } else {
@@ -119,7 +120,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
         }
 
         if (!line.isEmpty()) {
-            context.drawString(client.font, line.toString(), textX, lineY, color);
+            RenderUtil.drawString(context, client.font, line.toString(), textX, lineY, color);
         }
     }
 
@@ -153,15 +154,15 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
     }
 
     private void drawBackground(GuiGraphics context, int bgColor) {
-        context.fill(x, y, x + width, y + calculatedHeight, bgColor);
+        RenderUtil.fillRect(context, x, y, x + width, y + calculatedHeight, bgColor);
     }
 
     private void drawBorder(GuiGraphics context) {
         int borderWidth = UITheme.Dimensions.BORDER_WIDTH;
-        context.fill(x, y, x + width, y + borderWidth, BORDER_COLOR);
-        context.fill(x, y + calculatedHeight - borderWidth, x + width, y + calculatedHeight, BORDER_COLOR);
-        context.fill(x, y, x + borderWidth, y + calculatedHeight, BORDER_COLOR);
-        context.fill(x + width - borderWidth, y, x + width, y + calculatedHeight, BORDER_COLOR);
+        RenderUtil.fillRect(context, x, y, x + width, y + borderWidth, BORDER_COLOR);
+        RenderUtil.fillRect(context, x, y + calculatedHeight - borderWidth, x + width, y + calculatedHeight, BORDER_COLOR);
+        RenderUtil.fillRect(context, x, y, x + borderWidth, y + calculatedHeight, BORDER_COLOR);
+        RenderUtil.fillRect(context, x + width - borderWidth, y, x + width, y + calculatedHeight, BORDER_COLOR);
     }
 
     private void renderContent(GuiGraphics context) {
@@ -195,7 +196,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
             ? String.format("%s | %s", channelLabel, updatedLabel)
             : String.format("%s (%s) | %s", channelLabel, codeLabel, updatedLabel);
 
-        context.drawString(client.font, info,
+        RenderUtil.drawString(context, client.font, info,
             x + UITheme.Dimensions.PADDING, currentY, UITheme.Colors.TEXT_SUBTITLE);
         return currentY + LINE_HEIGHT + CONTENT_SPACING;
     }

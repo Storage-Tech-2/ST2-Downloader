@@ -3,6 +3,7 @@ package com.andrews.gui.widget;
 import com.andrews.gui.theme.UITheme;
 import com.andrews.models.ArchivePostSummary;
 import com.andrews.network.ArchiveNetworkManager;
+import com.andrews.util.RenderUtil;
 import com.mojang.blaze3d.platform.NativeImage;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
@@ -126,7 +127,7 @@ public class PostGridWidget implements Renderable, GuiEventListener {
         int effectiveMouseX = blocked ? Integer.MIN_VALUE : mouseX;
         int effectiveMouseY = blocked ? Integer.MIN_VALUE : mouseY;
 
-        context.enableScissor(x, y, x + width - UITheme.Dimensions.SCROLLBAR_WIDTH, y + height);
+        RenderUtil.enableScissor(context, x, y, x + width - UITheme.Dimensions.SCROLLBAR_WIDTH, y + height);
 
         int offsetY = (int) scrollOffset;
         int firstRow = Math.max(0, offsetY / (CARD_HEIGHT + GAP) - 1);
@@ -150,7 +151,7 @@ public class PostGridWidget implements Renderable, GuiEventListener {
             renderCard(context, post, cardX, cardY, cardWidth, CARD_HEIGHT, effectiveMouseX, effectiveMouseY);
         }
 
-        context.disableScissor();
+        RenderUtil.disableScissor(context);
         if (client != null && client.getWindow() != null) {
             if (blocked) {
                 scrollBar.render(context, mouseX, mouseY, delta);
@@ -177,8 +178,8 @@ public class PostGridWidget implements Renderable, GuiEventListener {
         if (hovered) {
             bgColor = UITheme.Colors.BUTTON_BG_HOVER;
         }
-        context.fill(cardX, cardY, cardX + cardWidth, cardY + cardHeight, bgColor);
-        context.fill(cardX, cardY, cardX + cardWidth, cardY + 1, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, cardX, cardY, cardX + cardWidth, cardY + cardHeight, bgColor);
+        RenderUtil.fillRect(context, cardX, cardY, cardX + cardWidth, cardY + 1, UITheme.Colors.BUTTON_BORDER);
 
         int imgPadding = 5;
         int imgX = cardX + imgPadding;
@@ -197,8 +198,9 @@ public class PostGridWidget implements Renderable, GuiEventListener {
             }
             int drawX = imgX + (imgW - drawW) / 2;
             int drawY = imgY + (IMAGE_HEIGHT - drawH) / 2;
-            context.fill(imgX, imgY, imgX + imgW, imgY + IMAGE_HEIGHT, UITheme.Colors.CONTAINER_BG);
-            context.blit(
+            RenderUtil.fillRect(context, imgX, imgY, imgX + imgW, imgY + IMAGE_HEIGHT, UITheme.Colors.CONTAINER_BG);
+            RenderUtil.blit(
+                context,
                 RenderPipelines.GUI_TEXTURED,
                 tex,
                 drawX,
@@ -211,7 +213,7 @@ public class PostGridWidget implements Renderable, GuiEventListener {
                 drawH
             );
         } else {
-            context.fill(imgX, imgY, imgX + imgW, imgY + IMAGE_HEIGHT, UITheme.Colors.CONTAINER_BG);
+            RenderUtil.fillRect(context, imgX, imgY, imgX + imgW, imgY + IMAGE_HEIGHT, UITheme.Colors.CONTAINER_BG);
             RenderUtil.drawScaledString(context, "Loading...", imgX + 4, imgY + IMAGE_HEIGHT / 2 - 4, UITheme.Colors.TEXT_SUBTITLE, 0.8f);
             ensureImageLoading(post);
         }
@@ -245,16 +247,16 @@ public class PostGridWidget implements Renderable, GuiEventListener {
                 int tw = (int) (client.font.width(tag) * tagScale) + 8;
                 if (tagX + tw > cardX + imgPadding + maxWidth) {
                     rows++;
-                    if (rows > maxRows) {
-                        break;
-                    }
-                    tagX = cardX + imgPadding;
-                    tagY += tagHeight + 2;
+                if (rows > maxRows) {
+                    break;
                 }
-                context.fill(tagX, tagY, tagX + tw, tagY + tagHeight, getTagColor(tag));
-                RenderUtil.drawScaledString(context, tag, tagX + 4, tagY + 2, UITheme.Colors.TEXT_TAG, tagScale);
-                tagX += tw + 4;
+                tagX = cardX + imgPadding;
+                tagY += tagHeight + 2;
             }
+            RenderUtil.fillRect(context, tagX, tagY, tagX + tw, tagY + tagHeight, getTagColor(tag));
+            RenderUtil.drawScaledString(context, tag, tagX + 4, tagY + 2, UITheme.Colors.TEXT_TAG, tagScale);
+            tagX += tw + 4;
+        }
             textY = tagY + tagHeight + 2;
         }
     }

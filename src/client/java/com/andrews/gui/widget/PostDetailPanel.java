@@ -9,6 +9,7 @@ import com.andrews.models.ArchiveRecordSection;
 import com.andrews.network.ArchiveNetworkManager;
 import com.andrews.util.AttachmentSaver;
 import com.andrews.util.LitematicaAutoLoader;
+import com.andrews.util.RenderUtil;
 import com.mojang.blaze3d.platform.NativeImage;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -722,20 +723,20 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         int renderMouseX = mouseX;
         int renderMouseY = mouseY;
 
-        context.fill(x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
+        RenderUtil.fillRect(context, x, y, x + width, y + height, UITheme.Colors.PANEL_BG_SECONDARY);
 
-        context.fill(x, y, x + 1, y + height, UITheme.Colors.BUTTON_BORDER);
+        RenderUtil.fillRect(context, x, y, x + 1, y + height, UITheme.Colors.BUTTON_BORDER);
 
         if (postInfo == null) {
             String text = "Select a schematic to view details";
             int textWidth = client.font.width(text);
-            context.drawString(client.font, text,
+            RenderUtil.drawString(context, client.font, text,
                     x + (width - textWidth) / 2, y + height / 2 - 4, UITheme.Colors.TEXT_SUBTITLE);
             return;
         }
 
         int contentStartY = y + UITheme.Dimensions.PADDING;
-        context.enableScissor(x + 1, contentStartY, x + width, y + height);
+        RenderUtil.enableScissor(context, x + 1, contentStartY, x + width, y + height);
 
         int currentY = contentStartY + UITheme.Dimensions.PADDING - (int) scrollOffset;
         contentHeight = 0;
@@ -754,16 +755,17 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         int imageY = containerY + (containerHeight - actualImageHeight) / 2;
 
         if (isLoadingImage) {
-            context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight,
+            RenderUtil.fillRect(context, containerX, containerY, containerX + containerWidth, containerY + containerHeight,
                     UITheme.Colors.CONTAINER_BG);
             imageLoadingSpinner.setPosition(
                     containerX + containerWidth / 2 - imageLoadingSpinner.getWidth() / 2,
                     containerY + containerHeight / 2 - imageLoadingSpinner.getHeight() / 2);
             imageLoadingSpinner.render(context, mouseX, mouseY, delta);
         } else if (currentImageTexture != null) {
-            context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight,
+            RenderUtil.fillRect(context, containerX, containerY, containerX + containerWidth, containerY + containerHeight,
                     UITheme.Colors.PANEL_BG);
-            context.blit(
+            RenderUtil.blit(
+                    context,
                     RenderPipelines.GUI_TEXTURED,
                     currentImageTexture,
                     imageX, imageY,
@@ -771,11 +773,11 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                     actualImageWidth, actualImageHeight,
                     actualImageWidth, actualImageHeight);
         } else {
-            context.fill(containerX, containerY, containerX + containerWidth, containerY + containerHeight,
+            RenderUtil.fillRect(context, containerX, containerY, containerX + containerWidth, containerY + containerHeight,
                     UITheme.Colors.CONTAINER_BG);
             String noImg = isCompactMode() ? "..." : "No image";
             int tw = client.font.width(noImg);
-            context.drawString(client.font, noImg,
+            RenderUtil.drawString(context, client.font, noImg,
                     containerX + (containerWidth - tw) / 2, containerY + containerHeight / 2 - 4,
                     UITheme.Colors.TEXT_SUBTITLE);
         }
@@ -805,7 +807,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 prevImageButton.render(context, renderMouseX, renderMouseY, delta);
             }
 
-            context.drawString(client.font, indicator, indicatorX, btnY + 4, UITheme.Colors.TEXT_SUBTITLE);
+            RenderUtil.drawString(context, client.font, indicator, indicatorX, btnY + 4, UITheme.Colors.TEXT_SUBTITLE);
 
             if (nextImageButton != null) {
                 nextImageButton.render(context, renderMouseX, renderMouseY, delta);
@@ -823,7 +825,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         contentHeight += titleHeight + 8;
 
         String metaLine = buildMetaLine();
-        context.drawString(client.font, metaLine, x + UITheme.Dimensions.PADDING, currentY,
+        RenderUtil.drawString(context, client.font, metaLine, x + UITheme.Dimensions.PADDING, currentY,
                 UITheme.Colors.TEXT_SUBTITLE);
         currentY += 16;
         contentHeight += 16;
@@ -839,7 +841,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         String[] tags = postInfo.tags();
         if (tags != null && tags.length > 0) {
-            context.drawString(client.font, "Tags:", x + UITheme.Dimensions.PADDING, currentY,
+            RenderUtil.drawString(context, client.font, "Tags:", x + UITheme.Dimensions.PADDING, currentY,
                     UITheme.Colors.TEXT_SUBTITLE);
             currentY += 12;
             contentHeight += 12;
@@ -852,8 +854,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                     currentY += 14;
                     contentHeight += 14;
                 }
-                context.fill(tagX, currentY, tagX + tagWidth, currentY + 12, getTagColor(tag));
-                context.drawString(client.font, tag, tagX + 4, currentY + 2, UITheme.Colors.TEXT_TAG);
+                RenderUtil.fillRect(context, tagX, currentY, tagX + tagWidth, currentY + 12, getTagColor(tag));
+                RenderUtil.drawString(context, client.font, tag, tagX + 4, currentY + 2, UITheme.Colors.TEXT_TAG);
                 tagX += tagWidth + 4;
             }
             currentY += 16;
@@ -867,7 +869,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 if (section == null)
                     continue;
                 String header = section.title() != null ? section.title() : "Details";
-                context.drawString(client.font, header + ":", x + UITheme.Dimensions.PADDING, currentY,
+                RenderUtil.drawString(context, client.font, header + ":", x + UITheme.Dimensions.PADDING, currentY,
                         UITheme.Colors.TEXT_SUBTITLE);
                 currentY += 12;
                 contentHeight += 12;
@@ -889,13 +891,13 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             }
         } else if (isLoadingDetails) {
             currentY += 8;
-            context.drawString(client.font, "Loading details...", x + UITheme.Dimensions.PADDING, currentY,
+            RenderUtil.drawString(context, client.font, "Loading details...", x + UITheme.Dimensions.PADDING, currentY,
                     UITheme.Colors.TEXT_SUBTITLE);
             contentHeight += 20;
         }
 
         if (availableFiles != null && !availableFiles.isEmpty()) {
-            context.drawString(client.font, "Attachments:", x + UITheme.Dimensions.PADDING, currentY,
+            RenderUtil.drawString(context, client.font, "Attachments:", x + UITheme.Dimensions.PADDING, currentY,
                     UITheme.Colors.TEXT_SUBTITLE);
             currentY += 12;
             contentHeight += 12;
@@ -920,7 +922,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 boolean isHover = renderMouseX >= rowX && renderMouseX <= rowX + rowWidth &&
                         renderMouseY >= rowY && renderMouseY <= rowY + rowHeight;
                 int bgColor = isHover ? UITheme.Colors.BUTTON_BG_HOVER : UITheme.Colors.BUTTON_BG;
-                context.fill(rowX, rowY, rowX + rowWidth, rowY + rowHeight, bgColor);
+                RenderUtil.fillRect(context, rowX, rowY, rowX + rowWidth, rowY + rowHeight, bgColor);
 
                 int cursorY = rowY + 3;
                 RenderUtil.drawScaledString(context, nameText, rowX + 6, cursorY, UITheme.Colors.TEXT_PRIMARY, 0.85f,
@@ -928,7 +930,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 cursorY += nameHeight;
 
                 if (metaHeight > 0) {
-                    context.drawString(client.font, meta, rowX + 6, cursorY - 2, UITheme.Colors.TEXT_SUBTITLE);
+                    RenderUtil.drawString(context, client.font, meta, rowX + 6, cursorY - 2, UITheme.Colors.TEXT_SUBTITLE);
                     cursorY += metaHeight;
                 }
 
@@ -974,7 +976,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         contentHeight += UITheme.Dimensions.PADDING * 2;
 
-        context.disableScissor();
+        RenderUtil.disableScissor(context);
 
         if (contentHeight > height) {
             scrollBar.setScrollData(contentHeight, height);
@@ -1025,7 +1027,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 int testWidth = client.font.width(testLine);
 
                 if (testWidth > maxWidth && !line.isEmpty()) {
-                    context.drawString(client.font, line.toString(), textX, lineY, color);
+                    RenderUtil.drawString(context, client.font, line.toString(), textX, lineY, color);
                     line = new StringBuilder(word);
                     lineY += 10;
                 } else {
@@ -1034,7 +1036,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             }
 
             if (!line.isEmpty()) {
-                context.drawString(client.font, line.toString(), textX, lineY, color);
+                RenderUtil.drawString(context, client.font, line.toString(), textX, lineY, color);
                 lineY += 10;
             }
         }

@@ -8,6 +8,7 @@ import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import com.andrews.gui.theme.UITheme;
+import com.andrews.util.RenderUtil;
 
 public class ImageViewerWidget {
     private static final int IMAGE_MARGIN = 40;
@@ -131,7 +132,7 @@ public class ImageViewerWidget {
     }
 
     public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, screenWidth, screenHeight, UITheme.Colors.OVERLAY_BG);
+        RenderUtil.fillRect(context, 0, 0, screenWidth, screenHeight, UITheme.Colors.OVERLAY_BG);
 
         renderImage(context);
 
@@ -151,10 +152,11 @@ public class ImageViewerWidget {
         int imageX = (screenWidth - displayWidth) / 2;
         int imageY = (screenHeight - displayHeight) / 2;
 
-        context.fill(0, 0, screenWidth, screenHeight, UITheme.Colors.PANEL_BG);
+        RenderUtil.fillRect(context, 0, 0, screenWidth, screenHeight, UITheme.Colors.PANEL_BG);
 
         if (imageTexture != null) {
-            context.blit(
+            RenderUtil.blit(
+                context,
                 RenderPipelines.GUI_TEXTURED,
                 imageTexture,
                 imageX, imageY,
@@ -178,7 +180,7 @@ public class ImageViewerWidget {
 
         drawNavigationBackground(context, prevBtnX, navY, nextBtnX);
 
-        context.drawString(client.font, pageText, textX, textY, UITheme.Colors.TEXT_SUBTITLE);
+        RenderUtil.drawString(context, client.font, pageText, textX, textY, UITheme.Colors.TEXT_SUBTITLE);
 
         if (prevButton != null) {
             prevButton.render(context, mouseX, mouseY, delta);
@@ -194,7 +196,7 @@ public class ImageViewerWidget {
         int bgY = navY;
         int bgHeight = NAV_BUTTON_HEIGHT;
 
-        context.fill(bgX, bgY, bgX + bgWidth, bgY + bgHeight, NAV_BG_COLOR);
+        RenderUtil.fillRect(context, bgX, bgY, bgX + bgWidth, bgY + bgHeight, NAV_BG_COLOR);
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
