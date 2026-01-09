@@ -243,17 +243,24 @@ public class ArchiveNetworkManager {
 		Comparator<ArchivePostSummary> comparator;
 
 		switch (selectedSort) {
-			case "updated" -> comparator = Comparator.comparingLong(ArchivePostSummary::updatedAt).reversed();
+			case "updated" -> comparator = Comparator.comparingLong(ArchiveNetworkManager::getUpdatedTimestamp).reversed();
 			case "name" -> comparator = Comparator.comparing(
 				p -> p.title() != null ? p.title().toLowerCase(Locale.ROOT) : ""
 			);
 			case "code" -> comparator = Comparator.comparing(
 				p -> p.code() != null ? p.code().toLowerCase(Locale.ROOT) : ""
 			);
-			default -> comparator = Comparator.comparingLong(ArchivePostSummary::archivedAt).reversed();
+			default -> comparator = Comparator.comparingLong(ArchiveNetworkManager::getUpdatedTimestamp).reversed();
 		}
 
 		posts.sort(comparator);
+	}
+
+	private static long getUpdatedTimestamp(ArchivePostSummary post) {
+		if (post == null) return 0L;
+		long updated = post.updatedAt();
+		if (updated > 0) return updated;
+		return post.archivedAt();
 	}
 
 	private static ArchivePostSummary toSummary(ChannelRef channel, EntryRef entry) {
@@ -316,6 +323,14 @@ public class ArchiveNetworkManager {
 				boolean canDownload = attachment.canDownload == null || attachment.canDownload;
 				String downloadUrl = canDownload ? resolveAttachmentPath(attachment.path, summary.channelPath(), summary.entryPath()) : attachment.url;
 				String sizeText = attachment.litematic != null ? attachment.litematic.size : null;
+				ArchiveAttachment.YoutubeInfo youtubeInfo = null;
+				if (attachment.youtube != null) {
+					youtubeInfo = new ArchiveAttachment.YoutubeInfo(
+						attachment.youtube.title,
+						attachment.youtube.author_name,
+						attachment.youtube.author_url
+					);
+				}
 				attachments.add(new ArchiveAttachment(
 					attachment.name != null ? attachment.name : "Attachment",
 					downloadUrl,
@@ -331,7 +346,8 @@ public class ArchiveNetworkManager {
 					attachment.wdl != null ? new ArchiveAttachment.WdlInfo(
 						attachment.wdl.version,
 						attachment.wdl.error
-					) : null
+					) : null,
+					youtubeInfo
 				));
 			}
 		}

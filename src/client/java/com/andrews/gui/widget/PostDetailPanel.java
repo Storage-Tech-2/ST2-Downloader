@@ -1135,6 +1135,13 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
     private String buildAttachmentMeta(ArchiveAttachment attachment) {
         if (attachment == null) return "";
+        if (attachment.youtube() != null) {
+            ArchiveAttachment.YoutubeInfo yt = attachment.youtube();
+            List<String> parts = new ArrayList<>();
+            if (yt.title() != null && !yt.title().isEmpty()) parts.add(yt.title());
+            if (yt.authorName() != null && !yt.authorName().isEmpty()) parts.add("by " + yt.authorName());
+            return parts.isEmpty() ? "YouTube" : "YouTube • " + String.join(" • ", parts);
+        }
         if (attachment.litematic() != null) {
             ArchiveAttachment.LitematicInfo info = attachment.litematic();
             List<String> parts = new ArrayList<>();
