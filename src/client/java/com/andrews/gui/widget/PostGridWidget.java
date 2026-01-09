@@ -1,0 +1,512 @@
+package com.andrews.gui.widget;
+
+import com.andrews.gui.theme.UITheme;
+import com.andrews.models.ArchivePostSummary;
+import com.andrews.network.ArchiveNetworkManager;
+import com.mojang.blaze3d.platform.NativeImage;
+import java.io.ByteArrayInputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+import java.util.Set;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.Identifier;
+
+public class PostGridWidget implements Renderable, GuiEventListener {
+    private static final int CARD_HEIGHT = 120;
+    private static final int CARD_MIN_WIDTH = 120;
+    private static final int CARD_MAX_WIDTH = 160;
+    private static final int GAP = 6;
+    private static final int IMAGE_HEIGHT = 60;
+    private static final float TEXT_SCALE = 0.7f;
+
+    private final Minecraft client;
+    private int x;
+    private int y;
+    private int width;
+    private int height;
+    private double scrollOffset = 0;
+    private ScrollBar scrollBar;
+    private List<ArchivePostSummary> posts = new ArrayList<>();
+    private final OnPostClickListener onPostClick;
+    private final Map<String, Identifier> imageTextures = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<?>> imageLoading = new ConcurrentHashMap<>();
+    private final Map<String, int[]> imageSizes = new ConcurrentHashMap<>();
+    private boolean blocked = false;
+    private int expectedTotalPosts = 0;
+    private Runnable onEndReached;
+    private final HttpClient httpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(10))
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build();
+
+    public interface OnPostClickListener {
+        void onPostClick(ArchivePostSummary post);
+    }
+
+    public PostGridWidget(int x, int y, int width, int height, OnPostClickListener onPostClick) {
+        this.client = Minecraft.getInstance();
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.onPostClick = onPostClick;
+        this.scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH, y, height);
+    }
+
+    public void setDimensions(int x, int y, int width, int height) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.scrollBar = new ScrollBar(x + width - UITheme.Dimensions.SCROLLBAR_WIDTH, y, height);
+    }
+
+    public void setPosts(List<ArchivePostSummary> posts) {
+        resetPosts(posts);
+    }
+
+    public void resetPosts(List<ArchivePostSummary> posts) {
+        this.posts = posts != null ? new ArrayList<>(posts) : new ArrayList<>();
+        this.scrollOffset = 0;
+        this.imageTextures.clear();
+        this.imageLoading.clear();
+        this.imageSizes.clear();
+    }
+
+    public void appendPosts(List<ArchivePostSummary> posts) {
+        if (posts == null || posts.isEmpty()) return;
+        if (this.posts == null) {
+            this.posts = new ArrayList<>();
+        }
+        this.posts.addAll(posts);
+    }
+
+    public void setExpectedTotalPosts(int total) {
+        this.expectedTotalPosts = Math.max(total, 0);
+    }
+
+    public void setOnEndReached(Runnable onEndReached) {
+        this.onEndReached = onEndReached;
+    }
+
+    public void setBlocked(boolean blocked) {
+        this.blocked = blocked;
+    }
+
+    @Override
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+        Layout layout = computeLayout();
+        int columns = layout.columns();
+        int cardWidth = layout.cardWidth();
+
+        int contentHeight = computeContentHeight(columns);
+        scrollBar.setScrollData(contentHeight, height);
+        double maxScroll = Math.max(0, contentHeight - height);
+
+        scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
+        if (!scrollBar.isDragging()) {
+            scrollBar.setScrollPercentage(maxScroll > 0 ? scrollOffset / maxScroll : 0);
+        }
+        int effectiveMouseX = blocked ? Integer.MIN_VALUE : mouseX;
+        int effectiveMouseY = blocked ? Integer.MIN_VALUE : mouseY;
+
+        context.enableScissor(x, y, x + width - UITheme.Dimensions.SCROLLBAR_WIDTH, y + height);
+
+        int offsetY = (int) scrollOffset;
+        int firstRow = Math.max(0, offsetY / (CARD_HEIGHT + GAP) - 1);
+        int startIndex = Math.min(posts.size(), firstRow * columns);
+
+        for (int i = startIndex; i < posts.size(); i++) {
+            ArchivePostSummary post = posts.get(i);
+            int row = i / columns;
+            int col = i % columns;
+
+            int cardX = layout.startX() + col * (cardWidth + GAP);
+            int cardY = y + GAP + row * (CARD_HEIGHT + GAP) - offsetY;
+
+            if (cardY > y + height) {
+                break;
+            }
+            if (cardY + CARD_HEIGHT < y) {
+                continue;
+            }
+
+            renderCard(context, post, cardX, cardY, cardWidth, CARD_HEIGHT, effectiveMouseX, effectiveMouseY);
+        }
+
+        context.disableScissor();
+        if (client != null && client.getWindow() != null) {
+            if (blocked) {
+                scrollBar.render(context, mouseX, mouseY, delta);
+            } else {
+                boolean changed = scrollBar.updateAndRender(context, mouseX, mouseY, delta, client.getWindow().handle());
+                if (changed || scrollBar.isDragging()) {
+                    scrollOffset = scrollBar.getScrollPercentage() * Math.max(0, contentHeight - height);
+                }
+            }
+        } else {
+            scrollBar.render(context, mouseX, mouseY, delta);
+        }
+
+        int loadedContentHeight = computeLoadedContentHeight(columns);
+        if (onEndReached != null && posts.size() < expectedTotalPosts &&
+            scrollOffset + height >= loadedContentHeight - CARD_HEIGHT) {
+            onEndReached.run();
+        }
+    }
+
+    private void renderCard(GuiGraphics context, ArchivePostSummary post, int cardX, int cardY, int cardWidth, int cardHeight, int mouseX, int mouseY) {
+        int bgColor = UITheme.Colors.PANEL_BG;
+        boolean hovered = mouseX >= cardX && mouseX < cardX + cardWidth && mouseY >= cardY && mouseY < cardY + cardHeight;
+        if (hovered) {
+            bgColor = UITheme.Colors.BUTTON_BG_HOVER;
+        }
+        context.fill(cardX, cardY, cardX + cardWidth, cardY + cardHeight, bgColor);
+        context.fill(cardX, cardY, cardX + cardWidth, cardY + 1, UITheme.Colors.BUTTON_BORDER);
+
+        int imgPadding = 5;
+        int imgX = cardX + imgPadding;
+        int imgY = cardY + imgPadding;
+        int imgW = cardWidth - imgPadding * 2;
+
+        Identifier tex = imageTextures.get(post.id());
+        if (tex != null) {
+            int[] dims = imageSizes.get(post.id());
+            int drawW = imgW;
+            int drawH = IMAGE_HEIGHT;
+            if (dims != null && dims[0] > 0 && dims[1] > 0) {
+                double scale = Math.min((double) imgW / dims[0], (double) IMAGE_HEIGHT / dims[1]);
+                drawW = Math.max(1, (int) (dims[0] * scale));
+                drawH = Math.max(1, (int) (dims[1] * scale));
+            }
+            int drawX = imgX + (imgW - drawW) / 2;
+            int drawY = imgY + (IMAGE_HEIGHT - drawH) / 2;
+            context.fill(imgX, imgY, imgX + imgW, imgY + IMAGE_HEIGHT, UITheme.Colors.CONTAINER_BG);
+            context.blit(
+                RenderPipelines.GUI_TEXTURED,
+                tex,
+                drawX,
+                drawY,
+                0,
+                0,
+                drawW,
+                drawH,
+                drawW,
+                drawH
+            );
+        } else {
+            context.fill(imgX, imgY, imgX + imgW, imgY + IMAGE_HEIGHT, UITheme.Colors.CONTAINER_BG);
+            RenderUtil.drawScaledString(context, "Loading...", imgX + 4, imgY + IMAGE_HEIGHT / 2 - 4, UITheme.Colors.TEXT_SUBTITLE, 0.8f);
+            ensureImageLoading(post);
+        }
+
+        String title = post.title() != null ? post.title() : "Untitled";
+        int textY = imgY + IMAGE_HEIGHT + 3;
+        int titleWidth = cardWidth - imgPadding * 2;
+        int titleHeight = drawScaledWrappedTextLimited(context, title, cardX + imgPadding, textY, titleWidth, UITheme.Colors.TEXT_PRIMARY, TEXT_SCALE, 2);
+        textY += titleHeight + 4;
+
+        long timestamp = post.updatedAt() > 0 ? post.updatedAt() : post.archivedAt();
+        String dateText = timeAgo(timestamp);
+        String code = post.code() != null ? post.code() : "";
+        String metaLine = code.isEmpty() ? dateText : code + " • " + dateText;
+        if (!metaLine.isEmpty()) {
+            RenderUtil.drawScaledString(context, metaLine, cardX + imgPadding, textY, UITheme.Colors.TEXT_SUBTITLE, 0.7f);
+            textY += (int) (client.font.lineHeight * 0.7f) + 4;
+        }
+
+        String[] tags = post.tags();
+        if (tags != null && tags.length > 0) {
+            int tagX = cardX + imgPadding;
+            int maxWidth = cardWidth - imgPadding * 2;
+            int tagHeight = 10;
+            float tagScale = 0.7f;
+            int tagY = textY;
+            int rows = 1;
+            int maxRows = 2;
+            for (String tag : orderTags(tags)) {
+                if (tag == null) continue;
+                int tw = (int) (client.font.width(tag) * tagScale) + 8;
+                if (tagX + tw > cardX + imgPadding + maxWidth) {
+                    rows++;
+                    if (rows > maxRows) {
+                        break;
+                    }
+                    tagX = cardX + imgPadding;
+                    tagY += tagHeight + 2;
+                }
+                context.fill(tagX, tagY, tagX + tw, tagY + tagHeight, getTagColor(tag));
+                RenderUtil.drawScaledString(context, tag, tagX + 4, tagY + 2, UITheme.Colors.TEXT_TAG, tagScale);
+                tagX += tw + 4;
+            }
+            textY = tagY + tagHeight + 2;
+        }
+    }
+
+    private int computeContentHeight(int columns) {
+        int total = Math.max(expectedTotalPosts, posts != null ? posts.size() : 0);
+        int rows = (int) Math.ceil(total / (double) Math.max(columns, 1));
+        return rows * (CARD_HEIGHT + GAP) + GAP;
+    }
+
+    private int computeLoadedContentHeight(int columns) {
+        int loaded = posts != null ? posts.size() : 0;
+        int rows = (int) Math.ceil(loaded / (double) Math.max(columns, 1));
+        return rows * (CARD_HEIGHT + GAP) + GAP;
+    }
+
+    private int drawScaledWrappedTextLimited(GuiGraphics context, String text, int textX, int textY, int maxWidth, int color, float scale, int maxLines) {
+        if (text == null || text.isEmpty()) return 0;
+        String[] words = text.split(" ");
+        StringBuilder line = new StringBuilder();
+        int lineY = textY;
+        int linesDrawn = 0;
+
+        for (String word : words) {
+            String testLine = !line.isEmpty() ? line + " " + word : word;
+            int testWidth = (int) (client.font.width(testLine) * scale);
+
+            if (testWidth > maxWidth && !line.isEmpty()) {
+                RenderUtil.drawScaledString(context, line.toString(), textX, lineY, color, scale);
+                linesDrawn++;
+                if (linesDrawn >= maxLines) {
+                    return linesDrawn * (int) (client.font.lineHeight * scale);
+                }
+                line = new StringBuilder(word);
+                lineY += (int) (client.font.lineHeight * scale);
+            } else {
+                line = new StringBuilder(testLine);
+            }
+        }
+
+        if (!line.isEmpty() && linesDrawn < maxLines) {
+            RenderUtil.drawScaledString(context, line.toString(), textX, lineY, color, scale);
+            linesDrawn++;
+        }
+
+        return linesDrawn * (int) (client.font.lineHeight * scale);
+    }
+
+    private String timeAgo(long ts) {
+        if (ts <= 0) return "";
+        long now = System.currentTimeMillis();
+        long diff = Math.max(0, now - ts);
+        long sec = Math.round(diff / 1000.0);
+        long min = Math.round(sec / 60.0);
+        long hr = Math.round(min / 60.0);
+        long day = Math.round(hr / 24.0);
+        long yr = Math.round(day / 365.0);
+        if (sec < 60) return sec + "s ago";
+        if (min < 60) return min + "m ago";
+        if (hr < 48) return hr + "h ago";
+        if (day < 365) return day + "d ago";
+        return yr + "y ago";
+    }
+
+    private int getTagColor(String tag) {
+        if (tag == null) return UITheme.Colors.BUTTON_BG;
+        String lower = tag.toLowerCase();
+        if (lower.contains("untested")) return 0xFF8C6E00;
+        if (lower.contains("broken")) return 0xFF8B1A1A;
+        if (lower.contains("tested") || lower.contains("functional")) return 0xFF1E7F1E;
+        if (lower.contains("recommend")) return 0xFFB8860B;
+        return UITheme.Colors.BUTTON_BG;
+    }
+
+    private List<String> orderTags(String[] tags) {
+        List<String> list = new ArrayList<>();
+        if (tags == null) return list;
+        List<String> specials = List.of("untested", "broken", "tested & functional", "recommended");
+        Set<String> seen = new HashSet<>();
+        for (String s : specials) {
+            for (String tag : tags) {
+                if (tag == null) continue;
+                if (tag.toLowerCase().equals(s) && seen.add(tag.toLowerCase())) {
+                    list.add(tag);
+                }
+            }
+        }
+        for (String tag : tags) {
+            if (tag == null) continue;
+            String key = tag.toLowerCase();
+            if (seen.add(key)) {
+                list.add(tag);
+            }
+        }
+        return list;
+    }
+
+    private Layout computeLayout() {
+        int availableWidth = width - UITheme.Dimensions.SCROLLBAR_WIDTH - GAP;
+        int maxColumns = Math.max(1, (availableWidth + GAP) / (CARD_MIN_WIDTH + GAP));
+        int columns = maxColumns;
+        int cardWidth = CARD_MIN_WIDTH;
+
+        while (columns > 0) {
+            int candidate = (availableWidth - GAP * (columns - 1)) / columns;
+            if (candidate < CARD_MIN_WIDTH) {
+                columns--;
+                continue;
+            }
+            cardWidth = Math.min(CARD_MAX_WIDTH, candidate);
+            break;
+        }
+
+        if (columns <= 0) {
+            columns = 1;
+            cardWidth = Math.min(CARD_MAX_WIDTH, Math.max(CARD_MIN_WIDTH, availableWidth - GAP));
+        }
+
+        int usedWidth = columns * cardWidth + GAP * (columns - 1);
+        int startX = x + Math.max(GAP, (width - UITheme.Dimensions.SCROLLBAR_WIDTH - usedWidth) / 2);
+        return new Layout(columns, cardWidth, startX);
+    }
+
+    private record Layout(int columns, int cardWidth, int startX) {}
+
+    private void ensureImageLoading(ArchivePostSummary post) {
+        if (post == null || post.id() == null) return;
+        if (imageTextures.containsKey(post.id()) || imageLoading.containsKey(post.id())) return;
+
+        CompletableFuture<Void> future = ArchiveNetworkManager.getPostDetails(post)
+            .thenApply(detail -> {
+                if (detail == null || detail.images().isEmpty()) {
+                    return null;
+                }
+                return detail.images().get(0);
+            })
+            .thenCompose(url -> {
+                if (url == null || url.isEmpty()) {
+                    return CompletableFuture.completedFuture(null);
+                }
+                HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url.replace(" ", "%20")))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("User-Agent", ArchiveNetworkManager.USER_AGENT)
+                    .GET()
+                    .build();
+                return httpClient.sendAsync(req, HttpResponse.BodyHandlers.ofByteArray())
+                    .thenApply(resp -> resp.statusCode() == 200 ? resp.body() : null);
+            })
+            .thenAccept(bytes -> {
+                if (bytes == null) return;
+                try {
+                    NativeImage img = NativeImage.read(new ByteArrayInputStream(bytes));
+                    if (img == null || img.getWidth() <= 0 || img.getHeight() <= 0) {
+                        return;
+                    }
+                    String id = UUID.randomUUID().toString().replace("-", "");
+                    Identifier texId = Identifier.fromNamespaceAndPath("litematicdownloader", "grid/" + id);
+                    if (client != null) {
+                        client.execute(() -> {
+                            client.getTextureManager().register(texId, new DynamicTexture(() -> "grid_image", img));
+                            imageTextures.put(post.id(), texId);
+                            imageSizes.put(post.id(), new int[]{img.getWidth(), img.getHeight()});
+                        });
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to load grid image: " + e.getMessage());
+                }
+            })
+            .exceptionally(ex -> {
+                System.err.println("Image load failed for " + post.id() + ": " + ex.getMessage());
+                return null;
+            })
+            .whenComplete((r, t) -> imageLoading.remove(post.id()));
+
+        imageLoading.put(post.id(), future);
+    }
+
+    @Override
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent click, boolean doubled) {
+        if (blocked) return false;
+
+        double mouseX = click.x();
+        double mouseY = click.y();
+        int button = click.button();
+
+        if (button != 0) return false;
+
+        Layout layout = computeLayout();
+        int columns = layout.columns();
+        int cardWidth = layout.cardWidth();
+        int offsetY = (int) scrollOffset;
+
+        for (int i = 0; i < posts.size(); i++) {
+            int row = i / columns;
+            int col = i % columns;
+
+            int cardX = layout.startX() + col * (cardWidth + GAP);
+            int cardY = y + GAP + row * (CARD_HEIGHT + GAP) - offsetY;
+
+            if (mouseX >= cardX && mouseX < cardX + cardWidth && mouseY >= cardY && mouseY < cardY + CARD_HEIGHT) {
+                if (onPostClick != null) {
+                    onPostClick.onPostClick(posts.get(i));
+                }
+                return true;
+            }
+        }
+
+        if (scrollBar.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (blocked) return false;
+        if (mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height) {
+            Layout layout = computeLayout();
+            double contentHeight = computeContentHeight(layout.columns());
+            double maxScroll = Math.max(0, contentHeight - height);
+            scrollOffset = Math.max(0, Math.min(scrollOffset - verticalAmount * 18, maxScroll));
+            scrollBar.setScrollPercentage((float) (maxScroll > 0 ? scrollOffset / maxScroll : 0));
+            int loadedContentHeight = computeLoadedContentHeight(layout.columns());
+            if (onEndReached != null && posts.size() < expectedTotalPosts &&
+                scrollOffset + height >= loadedContentHeight - CARD_HEIGHT) {
+                onEndReached.run();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (blocked) return false;
+        if (scrollBar.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) {
+            Layout layout = computeLayout();
+            double contentHeight = computeContentHeight(layout.columns());
+            scrollOffset = scrollBar.getScrollPercentage() * Math.max(0, contentHeight - height);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        scrollBar.mouseReleased(mouseX, mouseY, button);
+        return false;
+    }
+
+    public void setFocused(boolean focused) {}
+
+    public boolean isFocused() {
+        return false;
+    }
+}
