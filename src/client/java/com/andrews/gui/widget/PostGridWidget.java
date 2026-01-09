@@ -430,7 +430,7 @@ public class PostGridWidget implements Drawable, Element {
             })
             .thenAccept(bytes -> {
                 if (bytes == null) {
-                    failedImagePosts.add(post.id());
+                    noImagePosts.add(post.id());
                     return;
                 }
                 try {
