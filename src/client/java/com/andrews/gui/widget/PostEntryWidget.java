@@ -59,7 +59,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
         int contentWidth = width - UITheme.Dimensions.PADDING * 2;
 
         if (post.title() != null && !post.title().isEmpty()) {
-            currentY += getWrappedTextHeight(post.title(), contentWidth) + CONTENT_SPACING;
+            currentY += RenderUtil.getWrappedTextHeight(client.font, post.title(), contentWidth) + CONTENT_SPACING;
         }
 
         currentY += LINE_HEIGHT + CONTENT_SPACING;
@@ -70,58 +70,11 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
                 if (i > 0) tags.append(", ");
                 tags.append(post.tags()[i]);
             }
-            currentY += getWrappedTextHeight(tags.toString(), contentWidth) + CONTENT_SPACING;
+            currentY += RenderUtil.getWrappedTextHeight(client.font, tags.toString(), contentWidth) + CONTENT_SPACING;
         }
 
         currentY += UITheme.Dimensions.PADDING;
         calculatedHeight = Math.max(MIN_ENTRY_HEIGHT, currentY);
-    }
-
-    private int getWrappedTextHeight(String text, int maxWidth) {
-        if (text == null || text.isEmpty()) return LINE_HEIGHT;
-
-        String[] words = text.split(" ");
-        StringBuilder line = new StringBuilder();
-        int lines = 1;
-
-        for (String word : words) {
-            String testLine = !line.isEmpty() ? line + " " + word : word;
-            int testWidth = client.font.width(testLine);
-
-            if (testWidth > maxWidth && !line.isEmpty()) {
-                line = new StringBuilder(word);
-                lines++;
-            } else {
-                line = new StringBuilder(testLine);
-            }
-        }
-
-        return lines * LINE_HEIGHT;
-    }
-
-    private void drawWrappedText(GuiGraphics context, String text, int textX, int textY, int maxWidth, int color) {
-        if (text == null || text.isEmpty()) return;
-
-        String[] words = text.split(" ");
-        StringBuilder line = new StringBuilder();
-        int lineY = textY;
-
-        for (String word : words) {
-            String testLine = !line.isEmpty() ? line + " " + word : word;
-            int testWidth = client.font.width(testLine);
-
-            if (testWidth > maxWidth && !line.isEmpty()) {
-                RenderUtil.drawString(context, client.font, line.toString(), textX, lineY, color);
-                line = new StringBuilder(word);
-                lineY += LINE_HEIGHT;
-            } else {
-                line = new StringBuilder(testLine);
-            }
-        }
-
-        if (!line.isEmpty()) {
-            RenderUtil.drawString(context, client.font, line.toString(), textX, lineY, color);
-        }
     }
 
     public void setY(int y) {
@@ -177,8 +130,8 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
     private int renderTitle(GuiGraphics context, int currentY, int contentWidth) {
         String title = post.title();
         if (title != null && !title.isEmpty()) {
-            drawWrappedText(context, title, x + UITheme.Dimensions.PADDING, currentY, contentWidth, TEXT_COLOR);
-            currentY += getWrappedTextHeight(title, contentWidth) + CONTENT_SPACING;
+            RenderUtil.drawWrappedText(context, client.font, title, x + UITheme.Dimensions.PADDING, currentY, contentWidth, TEXT_COLOR);
+            currentY += RenderUtil.getWrappedTextHeight(client.font, title, contentWidth) + CONTENT_SPACING;
         }
         return currentY;
     }
@@ -208,7 +161,7 @@ public class PostEntryWidget implements Renderable, GuiEventListener {
                 if (i > 0) tags.append(", ");
                 tags.append(post.tags()[i]);
             }
-            drawWrappedText(context, tags.toString(), x + UITheme.Dimensions.PADDING, currentY, contentWidth, UITheme.Colors.TEXT_SUBTITLE);
+            RenderUtil.drawWrappedText(context, client.font, tags.toString(), x + UITheme.Dimensions.PADDING, currentY, contentWidth, UITheme.Colors.TEXT_SUBTITLE);
         }
     }
 

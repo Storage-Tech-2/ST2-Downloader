@@ -72,4 +72,60 @@ public final class RenderUtil {
         }
         drawScaledString(context, clipped, x, y, color, scale);
     }
+
+    public static void drawWrappedText(GuiGraphics context, Font font, String text, int textX, int textY, int maxWidth, int color) {
+        if (text == null || text.isEmpty()) return;
+        int lineY = textY;
+        String[] paragraphs = text.split("\\r?\\n");
+        for (String paragraph : paragraphs) {
+            if (paragraph.isEmpty()) {
+                lineY += 10;
+                continue;
+            }
+            String[] words = paragraph.split(" ");
+            StringBuilder line = new StringBuilder();
+            for (String word : words) {
+                String testLine = !line.isEmpty() ? line + " " + word : word;
+                int testWidth = font.width(testLine);
+                if (testWidth > maxWidth && !line.isEmpty()) {
+                    drawString(context, font, line.toString(), textX, lineY, color);
+                    line = new StringBuilder(word);
+                    lineY += 10;
+                } else {
+                    line = new StringBuilder(testLine);
+                }
+            }
+            if (!line.isEmpty()) {
+                drawString(context, font, line.toString(), textX, lineY, color);
+                lineY += 10;
+            }
+        }
+    }
+
+    public static int getWrappedTextHeight(Font font, String text, int maxWidth) {
+        if (text == null || text.isEmpty()) return 10;
+        int lines = 0;
+        String[] paragraphs = text.split("\\r?\\n");
+        for (String paragraph : paragraphs) {
+            if (paragraph.isEmpty()) {
+                lines++;
+                continue;
+            }
+            String[] words = paragraph.split(" ");
+            StringBuilder line = new StringBuilder();
+            int paragraphLines = 1;
+            for (String word : words) {
+                String testLine = !line.isEmpty() ? line + " " + word : word;
+                int testWidth = font.width(testLine);
+                if (testWidth > maxWidth && !line.isEmpty()) {
+                    line = new StringBuilder(word);
+                    paragraphLines++;
+                } else {
+                    line = new StringBuilder(testLine);
+                }
+            }
+            lines += paragraphLines;
+        }
+        return Math.max(lines, 1) * 10;
+    }
 }

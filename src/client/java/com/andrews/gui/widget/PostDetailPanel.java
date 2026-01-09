@@ -393,9 +393,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         String imageDescription = imageController.getCurrentImageDescription();
         if (imageDescription != null && !imageDescription.isEmpty()) {
             int descWidth = width - UITheme.Dimensions.PADDING * 2;
-            drawWrappedText(context, imageDescription, x + UITheme.Dimensions.PADDING, currentY, descWidth,
+            RenderUtil.drawWrappedText(context, client.font, imageDescription, x + UITheme.Dimensions.PADDING, currentY, descWidth,
                     UITheme.Colors.TEXT_SUBTITLE);
-            int descHeight = getWrappedTextHeight(imageDescription, descWidth);
+            int descHeight = RenderUtil.getWrappedTextHeight(client.font, imageDescription, descWidth);
             currentY += descHeight + 6;
             contentHeight += descHeight + 6;
         }
@@ -424,9 +424,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
         }
 
         String title = postInfo.title() != null ? postInfo.title() : "Untitled";
-        drawWrappedText(context, title, x + UITheme.Dimensions.PADDING, currentY,
+        RenderUtil.drawWrappedText(context, client.font, title, x + UITheme.Dimensions.PADDING, currentY,
                 width - UITheme.Dimensions.PADDING * 2, UITheme.Colors.TEXT_PRIMARY);
-        int titleHeight = getWrappedTextHeight(title, width - UITheme.Dimensions.PADDING * 2);
+        int titleHeight = RenderUtil.getWrappedTextHeight(client.font, title, width - UITheme.Dimensions.PADDING * 2);
         currentY += titleHeight + 8;
         contentHeight += titleHeight + 8;
 
@@ -438,9 +438,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
         if (postDetail != null && postDetail.authors() != null && !postDetail.authors().isEmpty()) {
             String authorLine = "By: " + String.join(", ", postDetail.authors());
-            drawWrappedText(context, authorLine, x + UITheme.Dimensions.PADDING, currentY,
+            RenderUtil.drawWrappedText(context, client.font, authorLine, x + UITheme.Dimensions.PADDING, currentY,
                     width - UITheme.Dimensions.PADDING * 2, UITheme.Colors.TEXT_SUBTITLE);
-            int authorHeight = getWrappedTextHeight(authorLine, width - UITheme.Dimensions.PADDING * 2);
+            int authorHeight = RenderUtil.getWrappedTextHeight(client.font, authorLine, width - UITheme.Dimensions.PADDING * 2);
             currentY += authorHeight + 4;
             contentHeight += authorHeight + 4;
         }
@@ -485,9 +485,9 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                     for (String line : lines) {
                         if (line == null || line.isEmpty())
                             continue;
-                        drawWrappedText(context, line, x + UITheme.Dimensions.PADDING, currentY,
+                        RenderUtil.drawWrappedText(context, client.font, line, x + UITheme.Dimensions.PADDING, currentY,
                                 width - UITheme.Dimensions.PADDING * 2, UITheme.Colors.TEXT_TAG);
-                        int lineHeight = getWrappedTextHeight(line, width - UITheme.Dimensions.PADDING * 2);
+                        int lineHeight = RenderUtil.getWrappedTextHeight(client.font, line, width - UITheme.Dimensions.PADDING * 2);
                         currentY += lineHeight;
                         contentHeight += lineHeight;
                     }
@@ -521,7 +521,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 int descWidth = rowWidth - 12;
                 int descHeight = 0;
                 if (attachment.description() != null && !attachment.description().isEmpty()) {
-                    descHeight = getWrappedTextHeight(attachment.description(), descWidth) + 2;
+                    descHeight = RenderUtil.getWrappedTextHeight(client.font, attachment.description(), descWidth) + 2;
                 }
                 int rowHeight = nameHeight + metaHeight + descHeight + 4;
 
@@ -541,7 +541,7 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
                 }
 
                 if (descHeight > 0) {
-                    drawWrappedText(context, attachment.description(), rowX + 6, cursorY, descWidth,
+                    RenderUtil.drawWrappedText(context, client.font, attachment.description(), rowX + 6, cursorY, descWidth,
                             UITheme.Colors.TEXT_TAG);
                     cursorY += descHeight;
                 }
@@ -554,8 +554,8 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
             String downloadStatus = attachmentManager.getDownloadStatus();
             if (downloadStatus != null && !downloadStatus.isEmpty()) {
                 int statusWidth = rowWidth - 4;
-                drawWrappedText(context, downloadStatus, rowX, currentY, statusWidth, UITheme.Colors.TEXT_SUBTITLE);
-                int statusHeight = getWrappedTextHeight(downloadStatus, statusWidth);
+                RenderUtil.drawWrappedText(context, client.font, downloadStatus, rowX, currentY, statusWidth, UITheme.Colors.TEXT_SUBTITLE);
+                int statusHeight = RenderUtil.getWrappedTextHeight(client.font, downloadStatus, statusWidth);
                 currentY += statusHeight + 4;
                 contentHeight += statusHeight + 4;
             }
@@ -608,79 +608,6 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
 
     public void renderImageViewer(GuiGraphics context, int mouseX, int mouseY, float delta) {
         imageController.renderImageViewer(context, mouseX, mouseY, delta);
-    }
-
-    private void drawWrappedText(GuiGraphics context, String text, int textX, int textY, int maxWidth, int color) {
-        if (text == null || text.isEmpty())
-            return;
-
-        int lineY = textY;
-
-        String[] paragraphs = text.split("\\r?\\n");
-
-        for (String paragraph : paragraphs) {
-            if (paragraph.isEmpty()) {
-                lineY += 10;
-                continue;
-            }
-
-            String[] words = paragraph.split(" ");
-            StringBuilder line = new StringBuilder();
-
-            for (String word : words) {
-                String testLine = !line.isEmpty() ? line + " " + word : word;
-                int testWidth = client.font.width(testLine);
-
-                if (testWidth > maxWidth && !line.isEmpty()) {
-                    RenderUtil.drawString(context, client.font, line.toString(), textX, lineY, color);
-                    line = new StringBuilder(word);
-                    lineY += 10;
-                } else {
-                    line = new StringBuilder(testLine);
-                }
-            }
-
-            if (!line.isEmpty()) {
-                RenderUtil.drawString(context, client.font, line.toString(), textX, lineY, color);
-                lineY += 10;
-            }
-        }
-    }
-
-    private int getWrappedTextHeight(String text, int maxWidth) {
-        if (text == null || text.isEmpty())
-            return 10;
-
-        int lines = 0;
-
-        String[] paragraphs = text.split("\\r?\\n");
-
-        for (String paragraph : paragraphs) {
-            if (paragraph.isEmpty()) {
-                lines++;
-                continue;
-            }
-
-            String[] words = paragraph.split(" ");
-            StringBuilder line = new StringBuilder();
-            int paragraphLines = 1;
-
-            for (String word : words) {
-                String testLine = !line.isEmpty() ? line + " " + word : word;
-                int testWidth = client.font.width(testLine);
-
-                if (testWidth > maxWidth && !line.isEmpty()) {
-                    line = new StringBuilder(word);
-                    paragraphLines++;
-                } else {
-                    line = new StringBuilder(testLine);
-                }
-            }
-
-            lines += paragraphLines;
-        }
-
-        return Math.max(lines, 1) * 10;
     }
 
     private String buildMetaLine() {

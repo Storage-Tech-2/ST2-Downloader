@@ -39,26 +39,6 @@ public class ChannelDescriptionWidget {
             ? channel.description()
             : "Click on a channel to filter posts";
         int maxWidth = width - UITheme.Dimensions.PADDING * 2;
-        drawWrappedText(context, font, desc, textX, textY, maxWidth, UITheme.Colors.TEXT_PRIMARY);
-    }
-
-    private void drawWrappedText(GuiGraphics context, Font font, String text, int x, int y, int maxWidth, int color) {
-        if (text == null || text.isEmpty()) return;
-        String[] words = text.split(" ");
-        StringBuilder line = new StringBuilder();
-        int lineY = y;
-        for (String word : words) {
-            String test = line.length() > 0 ? line + " " + word : word;
-            if (font.width(test) > maxWidth && line.length() > 0) {
-                RenderUtil.drawString(context, font, line.toString(), x, lineY, color);
-                line = new StringBuilder(word);
-                lineY += font.lineHeight + 2;
-            } else {
-                line = new StringBuilder(test);
-            }
-        }
-        if (!line.isEmpty()) {
-            RenderUtil.drawString(context, font, line.toString(), x, lineY, color);
-        }
+        RenderUtil.drawWrappedText(context, font, desc, textX, textY, maxWidth, UITheme.Colors.TEXT_PRIMARY);
     }
 }
