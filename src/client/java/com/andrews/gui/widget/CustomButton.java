@@ -10,7 +10,6 @@ import net.minecraft.client.gui.components.Button;
 
 public class CustomButton extends Button {
     private boolean renderAsXIcon = false;
-    private boolean renderAsDownloadIcon = false;
 
     public CustomButton(int x, int y, int width, int height, net.minecraft.network.chat.Component message, OnPress onPress) {
         super(x, y, width, height, message, onPress, DEFAULT_NARRATION);
@@ -18,10 +17,6 @@ public class CustomButton extends Button {
 
     public void setRenderAsXIcon(boolean renderAsXIcon) {
         this.renderAsXIcon = renderAsXIcon;
-    }
-
-    public void setRenderAsDownloadIcon(boolean renderAsDownloadIcon) {
-        this.renderAsDownloadIcon = renderAsDownloadIcon;
     }
 
     @Override
@@ -77,8 +72,6 @@ public class CustomButton extends Button {
     private String getDisplayText() {
         if (renderAsXIcon) {
             return "✕";
-        } else if (renderAsDownloadIcon) {
-            return "💾";
         }
         return this.getMessage().getString();
     }
