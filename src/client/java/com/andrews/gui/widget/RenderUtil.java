@@ -15,7 +15,7 @@ public final class RenderUtil {
         context.getMatrices().push();
         context.getMatrices().translate(x, y, 0);
         context.getMatrices().scale(scale, scale, 1);
-        context.drawTextWithShadow(font, text, 0, 0, color);
+        context.drawText(font, text, 0, 0, color, false);
         context.getMatrices().pop();
     }
 
