@@ -31,7 +31,7 @@ import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.util.Identifier;
 
 public class PostGridWidget implements Drawable, Element {
-    private static final int CARD_HEIGHT = 120;
+    private static final int CARD_HEIGHT = 135;
     private static final int CARD_MIN_WIDTH = 120;
     private static final int CARD_MAX_WIDTH = 160;
     private static final int GAP = 6;
@@ -278,6 +278,10 @@ public class PostGridWidget implements Drawable, Element {
             RenderUtil.drawScaledString(context, metaLine, cardX + imgPadding, textY, UITheme.Colors.TEXT_SUBTITLE, 0.7f);
             textY += (int) (client.textRenderer.fontHeight * 0.7f) + 4;
         }
+
+        String authorLine = (post.authors() != null && post.authors().length > 0) ? String.join(", ", post.authors()) : "Unknown Author";
+        int authorHeight = drawScaledWrappedTextLimited(context, authorLine, cardX + imgPadding, textY, cardWidth - imgPadding * 2, UITheme.Colors.TEXT_SUBTITLE, TEXT_SCALE * 0.9f, 2);
+        textY += authorHeight + 4;
 
         String[] tags = post.tags();
         if (tags != null && tags.length > 0) {
