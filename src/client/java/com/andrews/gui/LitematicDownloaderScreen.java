@@ -384,7 +384,7 @@ public class LitematicDownloaderScreen extends Screen {
                 if (channelPanel != null) {
                     channelPanel.setChannelCounts(channelCounts);
                 }
-                updateTagCounts();
+                updateTagCounts(response.tagCounts());
 
                 isLoading = false;
                 isLoadingMore = false;
@@ -1004,13 +1004,26 @@ public class LitematicDownloaderScreen extends Screen {
     }
 
     private void updateTagCounts() {
+        updateTagCounts(null);
+    }
+
+    private void updateTagCounts(Map<String, Integer> countsFromSearch) {
         tagCounts.clear();
-        for (ArchivePostSummary post : currentPosts) {
-            if (post == null || post.tags() == null) continue;
-            for (String tag : post.tags()) {
-                if (tag == null) continue;
-                String key = tag.toLowerCase();
-                tagCounts.put(key, tagCounts.getOrDefault(key, 0) + 1);
+        if (countsFromSearch != null) {
+            for (Map.Entry<String, Integer> entry : countsFromSearch.entrySet()) {
+                if (entry.getKey() == null) continue;
+                String key = entry.getKey().toLowerCase();
+                int value = entry.getValue() != null ? entry.getValue() : 0;
+                tagCounts.put(key, value);
+            }
+        } else {
+            for (ArchivePostSummary post : currentPosts) {
+                if (post == null || post.tags() == null) continue;
+                for (String tag : post.tags()) {
+                    if (tag == null) continue;
+                    String key = tag.toLowerCase();
+                    tagCounts.put(key, tagCounts.getOrDefault(key, 0) + 1);
+                }
             }
         }
         for (String tag : getDisplayedTags()) {
