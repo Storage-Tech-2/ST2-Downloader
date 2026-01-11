@@ -7,6 +7,7 @@ public record ArchiveSearchResult(
     List<ArchivePostSummary> posts,
     int totalPages,
     int totalItems,
-    Map<String, Integer> channelCounts
+    Map<String, Integer> channelCounts,
+    Map<String, Integer> tagCounts
 ) {
 }

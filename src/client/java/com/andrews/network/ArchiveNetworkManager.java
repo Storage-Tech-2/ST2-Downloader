@@ -68,10 +68,18 @@ public class ArchiveNetworkManager {
 					channelCounts.put(channel.path(), 0);
 				}
 			}
+			Map<String, Integer> tagCounts = new LinkedHashMap<>();
 			for (ArchivePostSummary post : filtered) {
 				if (post == null || post.channelPath() == null) continue;
 				String path = post.channelPath();
 				channelCounts.put(path, channelCounts.getOrDefault(path, 0) + 1);
+				if (post.tags() != null) {
+					for (String tag2 : post.tags()) {
+						if (tag2 == null) continue;
+						String key = tag2.toLowerCase(Locale.ROOT);
+						tagCounts.put(key, tagCounts.getOrDefault(key, 0) + 1);
+					}
+				}
 			}
 
 			int totalItems = filtered.size();
@@ -84,7 +92,7 @@ public class ArchiveNetworkManager {
 				Math.min(endIndex, filtered.size())
 			);
 
-			return new ArchiveSearchResult(pageItems, totalPages, totalItems, channelCounts);
+			return new ArchiveSearchResult(pageItems, totalPages, totalItems, channelCounts, tagCounts);
 		});
 	}
 
