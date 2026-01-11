@@ -15,6 +15,7 @@ import com.andrews.util.TagUtil;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -318,16 +319,50 @@ public class PostDetailPanel implements Renderable, GuiEventListener {
     }
 
     private void openWebsiteLink() {
-        String id = getCurrentPostId();
-        if (id == null || id.isBlank()) {
+        if (postInfo == null) {
             return;
         }
-        String url = "http://storagetech2.org/?id=" + id;
+        String slug = buildEntrySlug(postInfo.code(), postInfo.title());
+        String url;
+        if (slug == null || slug.isBlank()) {
+            String id = getCurrentPostId();
+            if (id == null || id.isBlank()) {
+                return;
+            }
+            url = "http://storagetech2.org/?id=" + id;
+        } else {
+            url = "http://storagetech2.org/archives/" + slug;
+        }
         try {
             Util.getPlatform().openUri(url);
         } catch (Exception e) {
             System.err.println("Failed to open website: " + e.getMessage());
         }
+    }
+
+    private static String slugifyName(String input) {
+        if (input == null || input.isBlank()) {
+            return "";
+        }
+        String normalized = Normalizer.normalize(input, Normalizer.Form.NFKD);
+        String withoutDiacritics = normalized.replaceAll("\\p{M}", "");
+        String replaced = withoutDiacritics.replaceAll("[^a-zA-Z0-9]+", "-");
+        return replaced.replaceAll("^-+|-+$", "");
+    }
+
+    private static String buildEntrySlug(String code, String entryName) {
+        String base = code != null ? code : "";
+        String name = slugifyName(entryName);
+        if (name.isEmpty()) {
+            if (base.isEmpty()) {
+                return "";
+            }
+            return base;
+        }
+        if (base.isEmpty()) {
+            return name;
+        }
+        return base + "-" + name;
     }
 
     @Override

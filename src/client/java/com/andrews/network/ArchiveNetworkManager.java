@@ -14,7 +14,11 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.reflect.TypeToken;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -154,56 +158,81 @@ public class ArchiveNetworkManager {
 		ServerEntry targetServer = normalizeServer(server);
 		String key = serverKey(targetServer);
 
-		return fetchConfigAsync(targetServer).thenCompose(config -> {
-			Map<String, StyleInfo> styles = config.postStyle != null ? config.postStyle : Map.of();
-			CACHED_SCHEMA_STYLES.put(key, styles);
+		return fetchPersistentIndexAsync(targetServer)
+			.thenApply(index -> {
+				Map<String, StyleInfo> styles = index.schemaStyles() != null ? index.schemaStyles() : Map.of();
+				CACHED_SCHEMA_STYLES.put(key, styles);
+				return buildCacheFromPersistentIndex(index);
+			})
+			.whenComplete((cache, throwable) -> {
+				if (throwable == null && cache != null) {
+					CACHED_INDEXES.put(key, cache);
+				} else {
+					INDEX_FUTURES.remove(key);
+					CACHED_SCHEMA_STYLES.remove(key);
+				}
+			});
+	}
 
-			List<ArchivePostSummary> posts = new ArrayList<>();
-			List<ArchiveChannel> channels = new ArrayList<>();
+	private static ArchiveIndexCache buildCacheFromPersistentIndex(PersistentIndexData index) {
+		if (index == null) {
+			return new ArchiveIndexCache(List.of(), List.of());
+		}
 
-			if (config.archiveChannels == null || config.archiveChannels.isEmpty()) {
-				ArchiveIndexCache cache = new ArchiveIndexCache(posts, channels);
-				return CompletableFuture.completedFuture(cache);
+		List<String> allTags = index.allTags() != null ? index.allTags() : List.of();
+		List<String> allAuthors = index.allAuthors() != null ? index.allAuthors() : List.of();
+		List<String> allCategories = index.allCategories() != null ? index.allCategories() : List.of();
+		List<PersistentChannel> channelsFromIndex = index.channels() != null ? index.channels() : List.of();
+
+		List<ArchivePostSummary> posts = new ArrayList<>();
+		List<ArchiveChannel> channels = new ArrayList<>();
+
+		for (PersistentChannel channel : channelsFromIndex) {
+			if (channel == null) {
+				continue;
 			}
+			List<PersistentEntry> channelEntries = channel.entries() != null ? channel.entries() : List.of();
+			String category = safeGet(allCategories, channel.category());
+			List<String> channelTags = mapIndicesToList(channel.tags(), allTags);
 
-			List<CompletableFuture<ChannelBundle>> futures = new ArrayList<>();
-			for (ChannelRef channel : config.archiveChannels) {
-				futures.add(fetchChannelDataAsync(targetServer, channel.path).thenApply(data -> new ChannelBundle(channel, data)));
-			}
+			channels.add(new ArchiveChannel(
+				channel.code(),
+				channel.name(),
+				channel.code(),
+				category,
+				channel.path(),
+				channel.description(),
+				channelEntries.size(),
+				channelTags
+			));
 
-			return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-				.thenApply(v -> {
-					for (CompletableFuture<ChannelBundle> future : futures) {
-						ChannelBundle bundle = future.join();
-						ChannelRef channel = bundle.channel();
-						ChannelData channelData = bundle.data();
-						int entryCount = 0;
-						if (channelData.entries != null) {
-							for (EntryRef entry : channelData.entries) {
-								posts.add(toSummary(channel, entry));
-							}
-							entryCount = channelData.entries.size();
-						}
-						channels.add(new ArchiveChannel(
-							channel.id,
-							channel.name,
-							channel.code,
-							channel.category,
-							channel.path,
-							channel.description,
-							entryCount,
-							channel.availableTags != null ? channel.availableTags : List.of()
-						));
-					}
-					return new ArchiveIndexCache(posts, channels);
-				});
-		}).whenComplete((cache, throwable) -> {
-			if (throwable == null && cache != null) {
-				CACHED_INDEXES.put(key, cache);
-			} else {
-				INDEX_FUTURES.remove(key);
+			for (PersistentEntry entry : channelEntries) {
+				if (entry == null) {
+					continue;
+				}
+				String[] entryTags = mapIndicesToArray(entry.tags(), allTags);
+				String[] entryAuthors = mapIndicesToArray(entry.authors(), allAuthors);
+				long archivedAt = entry.archivedAt();
+				long updatedAt = entry.updatedAt();
+
+				posts.add(new ArchivePostSummary(
+					entry.id(),
+					entry.name(),
+					channel.name(),
+					channel.code(),
+					category,
+					channel.path(),
+					entry.path(),
+					getPrimaryCode(entry.codes()),
+					entryTags,
+					entryAuthors,
+					archivedAt,
+					updatedAt
+				));
 			}
-		});
+		}
+
+		return new ArchiveIndexCache(posts, channels);
 	}
 
 	private static CompletableFuture<ArchiveIndexCache> ensureIndexLoaded(ServerEntry server) {
@@ -247,15 +276,34 @@ public class ArchiveNetworkManager {
 			: List.of();
 
 		return posts.stream()
-			.filter(post -> normalizedQuery.isEmpty() ||
-				(post.title() != null && post.title().toLowerCase(Locale.ROOT).contains(normalizedQuery)) ||
-				(post.code() != null && post.code().toLowerCase(Locale.ROOT).contains(normalizedQuery)))
+			.filter(post -> matchesQuery(post, normalizedQuery))
 			.filter(post -> normalizedTag.isEmpty() || hasTagMatch(post, normalizedTag))
 			.filter(post -> normalizedInclude.isEmpty() || hasAllTags(post, normalizedInclude))
 			.filter(post -> normalizedExclude.isEmpty() || !hasAnyTag(post, normalizedExclude))
 			.filter(post -> normalizedChannels.isEmpty() ||
 				(post.channelPath() != null && normalizedChannels.contains(post.channelPath().toLowerCase(Locale.ROOT))))
 			.toList();
+	}
+
+	private static boolean matchesQuery(ArchivePostSummary post, String normalizedQuery) {
+		if (post == null) {
+			return false;
+		}
+		if (normalizedQuery == null || normalizedQuery.isEmpty()) {
+			return true;
+		}
+		if (post.title() != null && post.title().toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+			return true;
+		}
+		if (post.code() != null && post.code().toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+			return true;
+		}
+		for (String author : post.authors()) {
+			if (author != null && author.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static boolean hasTagMatch(ArchivePostSummary post, String normalizedTag) {
@@ -315,28 +363,6 @@ public class ArchiveNetworkManager {
 		return post.archivedAt();
 	}
 
-	private static ArchivePostSummary toSummary(ChannelRef channel, EntryRef entry) {
-		String[] tags = entry.tags != null ? entry.tags.toArray(new String[0]) : new String[0];
-		long updatedAt = entry.updatedAt != null && entry.updatedAt > 0
-			? entry.updatedAt
-			: (entry.archivedAt != null ? entry.archivedAt : 0L);
-		long archivedAt = entry.archivedAt != null ? entry.archivedAt : 0L;
-
-		return new ArchivePostSummary(
-			entry.id,
-			entry.name,
-			channel.name,
-			channel.code,
-			channel.category,
-			channel.path,
-			entry.path,
-			entry.code,
-			tags,
-			archivedAt,
-			updatedAt
-		);
-	}
-
 	private static ArchivePostDetail toPostDetail(ServerEntry server, ArchivePostSummary summary, ArchiveEntryData data) {
 		List<String> authors = new ArrayList<>();
 		if (data.authors != null) {
@@ -348,6 +374,14 @@ public class ArchiveNetworkManager {
 					if (name != null && !name.isEmpty()) {
 						authors.add(name);
 					}
+				}
+			}
+		}
+
+		if (authors.isEmpty() && summary.authors() != null) {
+			for (String author : summary.authors()) {
+				if (author != null && !author.isBlank()) {
+					authors.add(author);
 				}
 			}
 		}
@@ -584,13 +618,27 @@ public class ArchiveNetworkManager {
 		return withoutMarkdownLinks.replaceAll("https?://\\S+", "(link removed)");
 	}
 
-	private static CompletableFuture<ArchiveConfig> fetchConfigAsync(ServerEntry server) {
-		return fetchJsonAsync(server, "config.json").thenApply(json -> GSON.fromJson(json, ArchiveConfig.class));
-	}
+	private static CompletableFuture<PersistentIndexData> fetchPersistentIndexAsync(ServerEntry server) {
+		String url = buildRawUrl(server, "persistent.idx");
+		HttpRequest request = HttpRequest.newBuilder()
+			.uri(URI.create(url))
+			.timeout(Duration.ofSeconds(TIMEOUT_SECONDS))
+			.header("Accept", "application/octet-stream")
+			.header("User-Agent", USER_AGENT)
+			.GET()
+			.build();
 
-	private static CompletableFuture<ChannelData> fetchChannelDataAsync(ServerEntry server, String channelPath) {
-		String path = normalizePath(channelPath) + "/data.json";
-		return fetchJsonAsync(server, path).thenApply(json -> GSON.fromJson(json, ChannelData.class));
+		return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
+			.thenApply(response -> {
+				if (response.statusCode() != 200) {
+					throw new CompletionException(new RuntimeException("HTTP error: " + response.statusCode() + " for " + url));
+				}
+				byte[] body = response.body();
+				if (body == null || body.length == 0) {
+					throw new CompletionException(new RuntimeException("Empty persistent index for " + url));
+				}
+				return PersistentIndexParser.parse(body);
+			});
 	}
 
 	private static CompletableFuture<ArchiveEntryData> fetchEntryDataAsync(ServerEntry server, String channelPath, String entryPath) {
@@ -647,50 +695,213 @@ public class ArchiveNetworkManager {
 		return path.startsWith("/") ? path.substring(1) : path;
 	}
 
+	private static List<String> mapIndicesToList(List<Integer> indices, List<String> values) {
+		if (indices == null || indices.isEmpty() || values == null || values.isEmpty()) {
+			return List.of();
+		}
+		List<String> mapped = new ArrayList<>();
+		for (Integer index : indices) {
+			String value = safeGet(values, index);
+			if (value != null && !value.isBlank()) {
+				mapped.add(value);
+			}
+		}
+		return mapped;
+	}
+
+	private static String[] mapIndicesToArray(List<Integer> indices, List<String> values) {
+		List<String> mapped = mapIndicesToList(indices, values);
+		return mapped.toArray(new String[0]);
+	}
+
+	private static String safeGet(List<String> list, Integer index) {
+		if (list == null || index == null) {
+			return null;
+		}
+		if (index < 0 || index >= list.size()) {
+			return null;
+		}
+		return list.get(index);
+	}
+
+	private static String getPrimaryCode(List<String> codes) {
+		if (codes == null || codes.isEmpty()) {
+			return null;
+		}
+		return codes.get(0);
+	}
+
 	private record ArchiveIndexCache(List<ArchivePostSummary> posts, List<ArchiveChannel> channels) {
 	}
 
-	private static class ArchiveConfig {
-		List<ChannelRef> archiveChannels;
-		Map<String, StyleInfo> postStyle;
+	private static class PersistentIndexParser {
+		private static final int SUPPORTED_VERSION = 1;
+
+		static PersistentIndexData parse(byte[] buffer) {
+			ByteBuffer data = ByteBuffer.wrap(buffer);
+			data.order(ByteOrder.BIG_ENDIAN);
+
+			int version = Short.toUnsignedInt(data.getShort());
+			if (version != SUPPORTED_VERSION) {
+				throw new CompletionException(new IllegalArgumentException("Unsupported persistent index version: " + version));
+			}
+			long updatedAt = data.getLong();
+
+			data.order(ByteOrder.LITTLE_ENDIAN);
+			List<String> allTags = readStringList(data);
+			List<String> allAuthors = readStringList(data);
+			List<String> allCategories = readStringList(data);
+
+			int schemaStylesLength = data.getInt();
+			if (schemaStylesLength < 0) {
+				long unsigned = Integer.toUnsignedLong(schemaStylesLength);
+				throw new CompletionException(new IllegalArgumentException("Invalid schema styles length: " + unsigned));
+			}
+			byte[] stylesBytes = new byte[schemaStylesLength];
+			data.get(stylesBytes);
+			Map<String, StyleInfo> schemaStyles = parseStyles(stylesBytes);
+
+			List<PersistentChannel> channels = new ArrayList<>();
+			while (data.hasRemaining()) {
+				channels.add(readChannel(data));
+			}
+
+			return new PersistentIndexData(updatedAt, allTags, allAuthors, allCategories, schemaStyles, channels);
+		}
+
+		private static List<String> readStringList(ByteBuffer buffer) {
+			int count = Short.toUnsignedInt(buffer.getShort());
+			List<String> values = new ArrayList<>(count);
+			for (int i = 0; i < count; i++) {
+				values.add(readString(buffer));
+			}
+			return values;
+		}
+
+		private static PersistentChannel readChannel(ByteBuffer buffer) {
+			String code = readString(buffer);
+			String name = readString(buffer);
+			String description = readString(buffer);
+			int category = Short.toUnsignedInt(buffer.getShort());
+
+			int tagCount = Short.toUnsignedInt(buffer.getShort());
+			List<Integer> tags = new ArrayList<>(tagCount);
+			for (int i = 0; i < tagCount; i++) {
+				tags.add(Short.toUnsignedInt(buffer.getShort()));
+			}
+
+			String path = readString(buffer);
+
+			long entriesCountUnsigned = Integer.toUnsignedLong(buffer.getInt());
+			if (entriesCountUnsigned > Integer.MAX_VALUE) {
+				throw new CompletionException(new IllegalArgumentException("Channel entries exceed max int: " + entriesCountUnsigned));
+			}
+			int entriesCount = (int) entriesCountUnsigned;
+
+			List<PersistentEntry> entries = new ArrayList<>(entriesCount);
+			for (int i = 0; i < entriesCount; i++) {
+				entries.add(readEntry(buffer));
+			}
+
+			return new PersistentChannel(code, name, description, category, tags, path, entries);
+		}
+
+		private static PersistentEntry readEntry(ByteBuffer buffer) {
+			String id = readString(buffer);
+			List<String> codes = parseCodes(readString(buffer));
+			String name = readString(buffer);
+
+			int authorCount = Short.toUnsignedInt(buffer.getShort());
+			List<Integer> authors = new ArrayList<>(authorCount);
+			for (int i = 0; i < authorCount; i++) {
+				authors.add(Short.toUnsignedInt(buffer.getShort()));
+			}
+
+			int tagCount = Short.toUnsignedInt(buffer.getShort());
+			List<Integer> tags = new ArrayList<>(tagCount);
+			for (int i = 0; i < tagCount; i++) {
+				tags.add(Short.toUnsignedInt(buffer.getShort()));
+			}
+
+			buffer.order(ByteOrder.BIG_ENDIAN);
+			long updatedAt = buffer.getLong();
+			long archivedAt = buffer.getLong();
+			buffer.order(ByteOrder.LITTLE_ENDIAN);
+
+			String path = readString(buffer);
+
+			int mainImageLength = Short.toUnsignedInt(buffer.getShort());
+			String mainImagePath = null;
+			if (mainImageLength > 0) {
+				byte[] bytes = new byte[mainImageLength];
+				buffer.get(bytes);
+				mainImagePath = new String(bytes, StandardCharsets.UTF_8);
+			}
+
+			return new PersistentEntry(id, codes, name, authors, tags, updatedAt, archivedAt, path, mainImagePath);
+		}
+
+		private static String readString(ByteBuffer buffer) {
+			int length = Short.toUnsignedInt(buffer.getShort());
+			if (length == 0) {
+				return "";
+			}
+			byte[] bytes = new byte[length];
+			buffer.get(bytes);
+			return new String(bytes, StandardCharsets.UTF_8);
+		}
+
+		private static List<String> parseCodes(String codesString) {
+			if (codesString == null || codesString.isBlank()) {
+				return List.of();
+			}
+			return Arrays.stream(codesString.split(","))
+				.map(String::trim)
+				.filter(s -> !s.isEmpty())
+				.toList();
+		}
+
+		private static Map<String, StyleInfo> parseStyles(byte[] stylesBytes) {
+			if (stylesBytes == null || stylesBytes.length == 0) {
+				return Map.of();
+			}
+			String json = new String(stylesBytes, StandardCharsets.UTF_8);
+			return GSON.fromJson(json, new TypeToken<Map<String, StyleInfo>>() {}.getType());
+		}
 	}
 
-	private static class ChannelRef {
-		String id;
-		String name;
-		String code;
-		String category;
-		String path;
-		String description;
-		List<String> availableTags;
+	private record PersistentIndexData(
+		long updatedAt,
+		List<String> allTags,
+		List<String> allAuthors,
+		List<String> allCategories,
+		Map<String, StyleInfo> schemaStyles,
+		List<PersistentChannel> channels
+	) {
 	}
 
-	private static class ChannelData {
-		@SuppressWarnings("unused")
-		String id;
-		@SuppressWarnings("unused")
-		String name;
-		@SuppressWarnings("unused")
-		String code;
-		@SuppressWarnings("unused")
-		String category;
-		@SuppressWarnings("unused")
-		String description;
-		@SuppressWarnings("unused")
-		Integer currentCodeId;
-		@SuppressWarnings("unused")
-		List<String> availableTags;
-		List<EntryRef> entries;
+	private record PersistentChannel(
+		String code,
+		String name,
+		String description,
+		int category,
+		List<Integer> tags,
+		String path,
+		List<PersistentEntry> entries
+	) {
 	}
 
-	private static class EntryRef {
-		String id;
-		String name;
-		String code;
-		Long archivedAt;
-		Long updatedAt;
-		String path;
-		List<String> tags;
+	private record PersistentEntry(
+		String id,
+		List<String> codes,
+		String name,
+		List<Integer> authors,
+		List<Integer> tags,
+		long updatedAt,
+		long archivedAt,
+		String path,
+		String mainImagePath
+	) {
 	}
 
 	private static class ArchiveEntryData {
@@ -794,8 +1005,6 @@ public class ArchiveNetworkManager {
 		String attachmentMessageId;
 		String uploadMessageId;
 	}
-
-	private record ChannelBundle(ChannelRef channel, ChannelData data) {}
 
 	private static class StyleInfo {
 		Integer depth;
