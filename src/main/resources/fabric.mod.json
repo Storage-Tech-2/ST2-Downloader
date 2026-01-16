@@ -1,9 +1,9 @@
 {
 	"schemaVersion": 1,
-	"id": "st2-downloader",
+	"id": "share-projects-downloader",
 	"version": "${version}",
-	"name": "ST2 Downloader",
-	"description": "Downloader & file manager for Storage Tech 2 Litematics",
+	"name": "Share-Projects Downloader",
+	"description": "Downloader & file manager for Share-Projects schematics.",
 	"authors": [
 		"Andrews54757"
 	],
@@ -17,10 +17,10 @@
 	"environment": "client",
 	"entrypoints": {
 		"main": [
-			"com.andrews.ST2Downloader"
+			"com.andrews.spdownloader"
 		],
 		"client": [
-			"com.andrews.ST2DownloaderClient"
+			"com.andrews.spdownloaderClient"
 		]
 	},
 	"depends": {
@@ -29,8 +29,8 @@
 		"fabric-api": "*"
 	},
 	"mixins": [
-		"st2-downloader.mixins.json",
-		"st2-downloader.client.mixins.json"
+		"share-projects-downloader.mixins.json",
+		"share-projects-downloader.client.mixins.json"
 	],
 	"suggests": {
 		"another-mod": "*"

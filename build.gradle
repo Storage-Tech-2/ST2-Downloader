@@ -38,7 +38,7 @@ loom {
 	splitEnvironmentSourceSets()
 
 	mods {
-		"st2-downloader" {
+		"share-projects-downloader" {
 			sourceSet sourceSets.main
 			sourceSet sourceSets.client
 		}
