@@ -17,10 +17,10 @@
 	"environment": "client",
 	"entrypoints": {
 		"main": [
-			"com.andrews.ST2Downloader"
+			"com.andrews.st2downloader.ST2Downloader"
 		],
 		"client": [
-			"com.andrews.ST2DownloaderClient"
+			"com.andrews.st2downloader.ST2DownloaderClient"
 		]
 	},
 	"depends": {

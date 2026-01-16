@@ -1,6 +1,6 @@
 {
 	"required": true,
-	"package": "com.andrews.mixin",
+	"package": "com.andrews.st2downloader.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
 		"ExampleMixin"
