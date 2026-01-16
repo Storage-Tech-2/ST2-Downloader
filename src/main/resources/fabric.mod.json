@@ -17,10 +17,10 @@
 	"environment": "client",
 	"entrypoints": {
 		"main": [
-			"com.andrews.spdownloader"
+			"com.andrews.spdownloader.SPDownloader"
 		],
 		"client": [
-			"com.andrews.spdownloaderClient"
+			"com.andrews.spdownloader.SPDownloaderClient"
 		]
 	},
 	"depends": {
