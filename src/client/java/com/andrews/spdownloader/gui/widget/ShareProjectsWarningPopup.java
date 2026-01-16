@@ -38,7 +38,8 @@ public class ShareProjectsWarningPopup implements Drawable, Element {
         this.onAcknowledge = onAcknowledge;
 
         MinecraftClient client = MinecraftClient.getInstance();
-        this.messageLines = wrapText(message, POPUP_WIDTH - UITheme.Dimensions.PADDING * 2, client);
+        int scrollbarPadding = UITheme.Dimensions.SCROLLBAR_WIDTH + UITheme.Dimensions.PADDING;
+        this.messageLines = wrapText(message, POPUP_WIDTH - UITheme.Dimensions.PADDING * 2 - scrollbarPadding, client);
 
         int screenHeight = client.getWindow().getScaledHeight();
         int screenWidth = client.getWindow().getScaledWidth();
@@ -46,12 +47,15 @@ public class ShareProjectsWarningPopup implements Drawable, Element {
         int chromeHeight = UITheme.Dimensions.PADDING + UITheme.Typography.LINE_HEIGHT + UITheme.Dimensions.PADDING +
             UITheme.Dimensions.BUTTON_HEIGHT + UITheme.Dimensions.PADDING;
         this.actualMessageHeight = messageLines.size() * UITheme.Typography.LINE_HEIGHT;
-        this.visibleMessageHeight = Math.min(actualMessageHeight, Math.max(140, screenHeight / 3));
-        this.popupHeight = UITheme.Dimensions.PADDING + UITheme.Typography.LINE_HEIGHT + UITheme.Dimensions.PADDING +
-            visibleMessageHeight + UITheme.Dimensions.PADDING + UITheme.Dimensions.BUTTON_HEIGHT + UITheme.Dimensions.PADDING;
+
+        int margin = Math.max(12, UITheme.Dimensions.PADDING);
+        int maxPopupHeight = Math.max(120, screenHeight - margin * 2);
+        int availableForMessage = Math.max(80, maxPopupHeight - chromeHeight);
+        this.visibleMessageHeight = Math.min(actualMessageHeight, availableForMessage);
+        this.popupHeight = chromeHeight + visibleMessageHeight;
 
         this.x = (screenWidth - POPUP_WIDTH) / 2;
-        this.y = Math.max(UITheme.Dimensions.PADDING, (screenHeight - popupHeight) / 2);
+        this.y = Math.max(margin, (screenHeight - popupHeight) / 2);
 
         this.scrollBar = new ScrollBar(
             x + POPUP_WIDTH - UITheme.Dimensions.PADDING - UITheme.Dimensions.SCROLLBAR_WIDTH,
@@ -134,7 +138,8 @@ public class ShareProjectsWarningPopup implements Drawable, Element {
 
         int messageAreaY = y + UITheme.Dimensions.PADDING + UITheme.Typography.LINE_HEIGHT + UITheme.Dimensions.PADDING;
         int messageAreaHeight = visibleMessageHeight;
-        RenderUtil.enableScissor(context, x + UITheme.Dimensions.PADDING, messageAreaY, x + POPUP_WIDTH - UITheme.Dimensions.PADDING, messageAreaY + messageAreaHeight);
+        int scissorRight = x + POPUP_WIDTH - UITheme.Dimensions.PADDING - UITheme.Dimensions.SCROLLBAR_WIDTH;
+        RenderUtil.enableScissor(context, x + UITheme.Dimensions.PADDING, messageAreaY, scissorRight, messageAreaY + messageAreaHeight);
 
         int lineY = messageAreaY - (int) scrollOffset;
         for (String line : messageLines) {
